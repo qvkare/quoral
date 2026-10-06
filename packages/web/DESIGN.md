@@ -129,6 +129,6 @@ Documented exception: the loading skeleton uses a gradient shimmer (`design-allo
 
 ## Checks
 
-- `pnpm design:check` runs `scripts/design-check.mjs` on `packages/web`, `README.md` and `DEMO.md`, and runs in CI.
+- `pnpm design:check` runs `scripts/design-check.mjs` on `packages/web` and `README.md`, and runs in CI.
 - Screenshots at 375, 820 and 1280 px with real data. To see the failure state, stop the bot for about 30 seconds
   so a few bars miss and get settled.

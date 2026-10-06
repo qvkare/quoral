@@ -155,7 +155,7 @@ AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filter @quoral/bot 
 
 - [x] MIT licence
 - [ ] Public repo (the repo is private for now; make it public before submitting)
-- [ ] ≤ 3 min video (script: [DEMO.md](DEMO.md))
+- [ ] ≤ 3 min video
 - [ ] Mainnet/testnet contract addresses (fill from `contracts/deployments/143.json` / `10143.json`)
 - [ ] AI tooling disclosure (in the submission form)
 - [x] Prior work statement (below)

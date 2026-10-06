@@ -16,7 +16,7 @@
     "web": "pnpm --filter @quoral/web dev",
     "test": "pnpm -r test",
     "indexer": "pnpm --filter @quoral/indexer codegen && pnpm install && pnpm --filter @quoral/indexer dev",
-    "design:check": "node scripts/design-check.mjs packages/web README.md DEMO.md"
+    "design:check": "node scripts/design-check.mjs packages/web README.md"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
