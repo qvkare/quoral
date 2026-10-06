@@ -1,0 +1,349 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "agreementCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "agreementsOf",
+    "inputs": [
+      {
+        "name": "baseToken",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "allAgreements",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "attest",
+    "inputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deployer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "disclosure",
+    "inputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct DisclosureRegistry.Disclosure",
+        "components": [
+          {
+            "name": "issuer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "mm",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "market",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "baseToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "termsHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "uri",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "issuerAttested",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "mmAttested",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "factory",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "register",
+    "inputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "issuer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "mm",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "market",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "baseToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "termsHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setFactory",
+    "inputs": [
+      {
+        "name": "factory_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateURI",
+    "inputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Attested",
+    "inputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Disclosed",
+    "inputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "baseToken",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "issuer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "mm",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "market",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "termsHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "URIUpdated",
+    "inputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AlreadySet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotFactory",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotIssuer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotParty",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Unknown",
+    "inputs": []
+  }
+]

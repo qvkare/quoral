@@ -1,0 +1,607 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "bondVault_",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "factory_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "award",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "bidder",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "agreement",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "bestBid",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "bidder",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "retainerPerBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "bid",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "retainerPerBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "bidders",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "bids",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "retainerPerBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "bondVault",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IBondVault"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cancelRFQ",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "factory",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract AgreementFactory"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "openRFQ",
+    "inputs": [
+      {
+        "name": "terms",
+        "type": "tuple",
+        "internalType": "struct Terms",
+        "components": [
+          {
+            "name": "market",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "baseInventory",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "quoteInventory",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxSpreadBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "minDepthQuote",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "epochBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "uptimeWindowEpochs",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "uptimeBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "retainerPerBlock",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "durationBlocks",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "noticeBlocks",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "bondAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pauseExcused",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      },
+      {
+        "name": "biddingBlocks",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "rfq",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct RFQAuction.RFQ",
+        "components": [
+          {
+            "name": "issuer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "deadline",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum RFQAuction.Status"
+          },
+          {
+            "name": "winner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "agreement",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "uri",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "terms",
+            "type": "tuple",
+            "internalType": "struct Terms",
+            "components": [
+              {
+                "name": "market",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "baseInventory",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "quoteInventory",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minDepthQuote",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "epochBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "uptimeWindowEpochs",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "uptimeBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "retainerPerBlock",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "durationBlocks",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "noticeBlocks",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "bondAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "slashAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "pauseExcused",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "rfqCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdrawBid",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Awarded",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "winner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "agreement",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "retainerPerBlock",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BidPlaced",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bidder",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "retainerPerBlock",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BidWithdrawn",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bidder",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RFQCancelled",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RFQOpened",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "issuer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "market",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "deadline",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AboveCap",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BiddingClosed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IsWinner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoBid",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotIssuer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotOpen",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroRetainer",
+    "inputs": []
+  }
+]

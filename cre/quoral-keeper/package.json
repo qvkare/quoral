@@ -1,0 +1,7 @@
+{
+  "name": "quoral-cre-keeper",
+  "private": true,
+  "type": "module",
+  "scripts": { "simulate": "cre workflow simulate ./ --target production-settings" },
+  "dependencies": { "@chainlink/cre-sdk": "^1.23.0", "viem": "^2.38.0" }
+}

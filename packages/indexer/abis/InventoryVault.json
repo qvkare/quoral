@@ -1,0 +1,971 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "acceptOperator",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "bondVault",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cancel",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "currentEpoch",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "endBlock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "factory",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "finalize",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "finalized",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "giveNotice",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "heartbeat",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "initialize",
+    "inputs": [
+      {
+        "name": "p",
+        "type": "tuple",
+        "internalType": "struct InventoryVault.InitParams",
+        "components": [
+          {
+            "name": "terms",
+            "type": "tuple",
+            "internalType": "struct Terms",
+            "components": [
+              {
+                "name": "market",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "baseInventory",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "quoteInventory",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "maxSpreadBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "minDepthQuote",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "epochBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "uptimeWindowEpochs",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "uptimeBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "retainerPerBlock",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "durationBlocks",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "noticeBlocks",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "bondAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "slashAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "pauseExcused",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "issuer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "mm",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "operator",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "marginAccount",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "heartbeat",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "paystream",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "bondVault",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "startBlock",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      },
+      {
+        "name": "s",
+        "type": "tuple",
+        "internalType": "struct MarketScale",
+        "components": [
+          {
+            "name": "pricePrecision",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "sizePrecision",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "baseDecimals",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "quoteDecimals",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "baseToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "quoteToken",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "isLive",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "issuer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "marginAccount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "marginBalances",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "base",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "quote",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "marketScale",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct MarketScale",
+        "components": [
+          {
+            "name": "pricePrecision",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "sizePrecision",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "baseDecimals",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "quoteDecimals",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "baseToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "quoteToken",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "mm",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "noticeGiven",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "openOrders",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint40[]",
+        "internalType": "uint40[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "operator",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "operatorProposer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "paystream",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOperator",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposeOperator",
+    "inputs": [
+      {
+        "name": "newOperator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "requote",
+    "inputs": [
+      {
+        "name": "bidPrices",
+        "type": "uint32[]",
+        "internalType": "uint32[]"
+      },
+      {
+        "name": "bidSizes",
+        "type": "uint96[]",
+        "internalType": "uint96[]"
+      },
+      {
+        "name": "askPrices",
+        "type": "uint32[]",
+        "internalType": "uint32[]"
+      },
+      {
+        "name": "askSizes",
+        "type": "uint96[]",
+        "internalType": "uint96[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "startBlock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "terms",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct Terms",
+        "components": [
+          {
+            "name": "market",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "baseInventory",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "quoteInventory",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxSpreadBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "minDepthQuote",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "epochBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "uptimeWindowEpochs",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "uptimeBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "retainerPerBlock",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "durationBlocks",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "noticeBlocks",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "bondAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "slashAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pauseExcused",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalEpochs",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "venuePaused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdrawInventory",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Canceled",
+    "inputs": [
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "orderIds",
+        "type": "uint40[]",
+        "indexed": false,
+        "internalType": "uint40[]"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Finalized",
+    "inputs": [
+      {
+        "name": "settledEpochs",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Initialized",
+    "inputs": [
+      {
+        "name": "version",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InventoryWithdrawn",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "baseAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "NoticeGiven",
+    "inputs": [
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newEndBlock",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OperatorChanged",
+    "inputs": [
+      {
+        "name": "oldOperator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOperator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OperatorProposed",
+    "inputs": [
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Requoted",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "proof",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct Proof",
+        "components": [
+          {
+            "name": "bestBid",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "bestAsk",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "spreadBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "blockNumber",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "bidDepthQuote",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "askDepthQuote",
+            "type": "uint128",
+            "internalType": "uint128"
+          }
+        ]
+      },
+      {
+        "name": "bidLevels",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "askLevels",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AlreadyFinalized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CrossedQuote",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "DepthTooThin",
+    "inputs": [
+      {
+        "name": "bidDepth",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "askDepth",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minDepth",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidInitialization",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "LengthMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoPendingOperator",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoTwoSidedQuote",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotEnded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotFullySettled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotInitializing",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotIssuer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotLive",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotOperator",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotParty",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoticeAlreadyGiven",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SameProposer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SpreadTooWide",
+    "inputs": [
+      {
+        "name": "spreadBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxSpreadBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "name": "quoral-operator-<VAULT>",
+  "chain_type": "ethereum",
+  "rules": [
+    {
+      "name": "Only zero-value txs to the Quoral InventoryVault on this chain",
+      "method": "eth_sendTransaction",
+      "conditions": [
+        { "field_source": "ethereum_transaction", "field": "to", "operator": "eq", "value": "<VAULT>" },
+        { "field_source": "ethereum_transaction", "field": "value", "operator": "eq", "value": "0" },
+        { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq", "value": "<CHAIN_ID>" }
+      ],
+      "action": "ALLOW"
+    }
+  ]
+}

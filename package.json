@@ -1,0 +1,28 @@
+{
+  "name": "quoral",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Enforceable market-maker agreements on Kuru (Monad)",
+  "license": "MIT",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "abis": "node scripts/export-abis.mjs",
+    "build:contracts": "cd contracts && forge build",
+    "test:contracts": "cd contracts && forge test",
+    "local:chain": "anvil --chain-id 31337 --block-time 1",
+    "local:deploy": "cd contracts && forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --slow && cd .. && node scripts/export-abis.mjs",
+    "bot": "pnpm --filter @quoral/bot quoter",
+    "keeper": "pnpm --filter @quoral/bot keeper",
+    "web": "pnpm --filter @quoral/web dev",
+    "test": "pnpm -r test",
+    "indexer": "pnpm --filter @quoral/indexer codegen && pnpm install && pnpm --filter @quoral/indexer dev",
+    "design:check": "node scripts/design-check.mjs packages/web README.md DEMO.md"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "rescript",
+      "envio"
+    ]
+  }
+}

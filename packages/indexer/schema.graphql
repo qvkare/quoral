@@ -1,0 +1,94 @@
+type Agreement {
+  id: ID! # InventoryVault address (lowercase)
+  chainId: Int!
+  issuer: String!
+  mm: String!
+  operator: String!
+  heartbeat: String!
+  paystream: String!
+  market: String!
+  baseToken: String!
+  quoteToken: String!
+  termsHash: String!
+  uri: String
+  startBlock: BigInt!
+  endBlock: BigInt!
+  retainerPerBlock: BigInt!
+  bond: BigInt!
+  quotedEpochs: Int!
+  excusedEpochs: Int!
+  missedEpochs: Int!
+  settledEpochs: BigInt!
+  requotes: Int!
+  lastSpreadBps: Int
+  lastBidDepth: BigInt
+  lastAskDepth: BigInt
+  lastBestBid: BigInt
+  lastBestAsk: BigInt
+  lastQuoteBlock: BigInt
+  clawedBack: BigInt!
+  claimedNet: BigInt!
+  fees: BigInt!
+  refunded: BigInt!
+  slashed: BigInt!
+  breaches: Int!
+  noticeGiven: Boolean!
+  finalized: Boolean!
+  fills: Int!
+  filledBase: BigInt!
+  epochs: [Epoch!]! @derivedFrom(field: "agreement")
+  events: [AgreementEvent!]! @derivedFrom(field: "agreement")
+}
+
+type Epoch {
+  id: ID! # <agreement>-<epoch>
+  agreement: Agreement!
+  epoch: BigInt!
+  status: String! # QUOTED | EXCUSED | MISSED | PENDING
+  quotes: Int!
+  bestBid: BigInt
+  bestAsk: BigInt
+  spreadBps: Int
+  bidDepth: BigInt
+  askDepth: BigInt
+  lastBlock: BigInt
+}
+
+type AgreementEvent {
+  id: ID!
+  agreement: Agreement!
+  kind: String! # CREATED | CLAWBACK | SLASH | CLAIM | NOTICE | OPERATOR | WITHDRAW | FINALIZED | REFUND | FILL | EXCUSED
+  amount: BigInt
+  detail: String
+  block: BigInt!
+  timestamp: Int!
+  txHash: String!
+}
+
+# heartbeat / paystream address → agreement
+type Link {
+  id: ID!
+  agreement: String!
+}
+
+type RFQ {
+  id: ID! # <chainId>-<rfqId>
+  issuer: String!
+  market: String!
+  deadline: BigInt!
+  uri: String!
+  status: String! # OPEN | AWARDED | CANCELLED
+  winner: String
+  agreement: String
+  winningRetainer: BigInt
+  bids: [Bid!]! @derivedFrom(field: "rfq")
+}
+
+type Bid {
+  id: ID! # <rfq>-<bidder>
+  rfq: RFQ!
+  bidder: String!
+  retainerPerBlock: BigInt!
+  operator: String!
+  active: Boolean!
+}

@@ -1,0 +1,9 @@
+# Chainlink CRE project (CLI ≥ v1.29.0 for Monad mainnet support)
+production-settings:
+  rpcs:
+    - chain-name: monad-mainnet
+      url: https://rpc.monad.xyz
+staging-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz

@@ -1,0 +1,24 @@
+{
+  "name": "@quoral/bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "quoter": "tsx src/quoter.ts",
+    "keeper": "tsx src/keeper.ts",
+    "privy:setup": "tsx src/privy-setup.ts",
+    "demo:attack": "tsx src/demo-attack.ts",
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quoral/shared": "workspace:*",
+    "dotenv": "^16.4.5",
+    "viem": "^2.38.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

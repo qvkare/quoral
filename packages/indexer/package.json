@@ -1,0 +1,19 @@
+{
+  "name": "@quoral/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "codegen": "envio codegen",
+    "dev": "envio dev",
+    "start": "envio start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "envio": "2.32.12",
+    "generated": "./generated"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
