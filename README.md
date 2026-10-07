@@ -74,7 +74,7 @@ git submodule update --init --recursive && pnpm install
 ```
 
 ```bash
-pnpm local:chain          # terminal 1: anvil, 1 s blocks
+pnpm local:chain          # terminal 1: anvil, 1 s blocks, no history kept on disk
 ```
 
 ```bash

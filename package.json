@@ -9,7 +9,7 @@
     "abis": "node scripts/export-abis.mjs",
     "build:contracts": "cd contracts && forge build",
     "test:contracts": "cd contracts && forge test",
-    "local:chain": "anvil --chain-id 31337 --block-time 1",
+    "local:chain": "anvil --chain-id 31337 --block-time 1 --prune-history",
     "local:deploy": "cd contracts && forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --slow && cd .. && node scripts/export-abis.mjs",
     "bot": "pnpm --filter @quoral/bot quoter",
     "keeper": "pnpm --filter @quoral/bot keeper",
