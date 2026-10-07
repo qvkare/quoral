@@ -10,6 +10,7 @@ import { dep, fmt, short, blocksToDuration, BLOCK_MS, isAddress, publicClient } 
 import { listAgreements, listRFQs, loadAgreement, token, type TokenInfo } from "@/lib/agreement";
 import { write, ensureAllowance, settleAll, DAY_MS } from "@/lib/actions";
 import { TxButton, PageHead, StatusPill } from "@/components/ui";
+import { Faucet } from "@/components/Faucet";
 
 const LOCAL = BLOCK_MS >= 1000;
 const DEFAULTS = {
@@ -26,6 +27,8 @@ const DEFAULTS = {
   bond: "5000",
   slash: "1000",
   biddingBlocks: LOCAL ? "600" : "2000",
+  maxMoveBps: "150",
+  startDelayBlocks: LOCAL ? "5" : "600",
   uri: "ipfs://",
 };
 type Form = typeof DEFAULTS;
@@ -42,7 +45,9 @@ function validate(f: Form) {
   if (!(Number.isInteger(n("windowEpochs")) && n("windowEpochs") > 0)) e.windowEpochs = "Whole number of epochs";
   if (!(n("durationDays") > 0)) e.durationDays = "Must be positive";
   if (!(n("retainerPerDay") > 0)) e.retainerPerDay = "Must be positive";
-  if (!(n("baseInventory") >= 0) || !(n("quoteInventory") >= 0) || n("baseInventory") + n("quoteInventory") === 0) e.baseInventory = "Lock some inventory";
+  if (!(n("baseInventory") > 0) || !(n("quoteInventory") > 0)) e.baseInventory = "A two-sided SLA needs both sides";
+  if (!(Number.isInteger(n("maxMoveBps")) && n("maxMoveBps") >= 0 && n("maxMoveBps") <= 10_000)) e.maxMoveBps = "0 – 10,000 bps (0 = no cap)";
+  if (!(Number.isInteger(n("startDelayBlocks")) && n("startDelayBlocks") >= 0)) e.startDelayBlocks = "Whole number of blocks";
   if (!(n("slash") <= n("bond"))) e.slash = "Can't exceed the bond";
   if (!(Number.isInteger(n("noticeBlocks")) && n("noticeBlocks") >= 0)) e.noticeBlocks = "Whole number of blocks";
   if (!(Number.isInteger(n("biddingBlocks")) && n("biddingBlocks") > 0)) e.biddingBlocks = "Whole number of blocks";
@@ -124,6 +129,8 @@ export default function IssuerConsole() {
       bondAmount: parseUnits(f.bond, quote.decimals),
       slashAmount: parseUnits(f.slash, quote.decimals),
       pauseExcused: true,
+      maxMidMoveBps: Number(f.maxMoveBps),
+      startDelayBlocks: Number(f.startDelayBlocks),
     };
     // the factory pulls inventory + the retainer budget (≤ cap) at award time
     const w2 = { client: w.client, account: w.account };
@@ -168,6 +175,7 @@ export default function IssuerConsole() {
                 <Field label="Epoch length" unit="blocks" value={f.epochBlocks} onChange={set("epochBlocks")} error={errors.epochBlocks} hint={`≈ ${blocksToDuration(Number(f.epochBlocks) || 0)} per proof`} />
                 <Field label="Uptime window" unit="epochs" value={f.windowEpochs} onChange={set("windowEpochs")} error={errors.windowEpochs} hint={`≈ ${blocksToDuration((Number(f.windowEpochs) || 0) * (Number(f.epochBlocks) || 0))}`} />
                 <Field label="Duration" unit="days" value={f.durationDays} onChange={set("durationDays")} error={errors.durationDays} />
+                <Field label="Max mid move" unit="bps / epoch" value={f.maxMoveBps} onChange={set("maxMoveBps")} error={errors.maxMoveBps} hint="caps how fast quotes can drift from the last proof" />
               </div>
             </fieldset>
 
@@ -187,6 +195,7 @@ export default function IssuerConsole() {
               <legend>RFQ</legend>
               <div className="grid g2">
                 <Field label="Bidding window" unit="blocks" value={f.biddingBlocks} onChange={set("biddingBlocks")} error={errors.biddingBlocks} hint={`≈ ${blocksToDuration(Number(f.biddingBlocks) || 0)}`} />
+                <Field label="Start delay" unit="blocks" value={f.startDelayBlocks} onChange={set("startDelayBlocks")} error={errors.startDelayBlocks} hint={`≈ ${blocksToDuration(Number(f.startDelayBlocks) || 0)} for the quoter to start after the award`} />
                 <label className="f">
                   Public terms document
                   <input value={f.uri} onChange={(e) => set("uri")(e.target.value)} placeholder="ipfs://…" />
@@ -249,9 +258,10 @@ export default function IssuerConsole() {
                 {a.pendingOperator !== ZERO && (
                   <TxButton label={`Accept operator ${short(a.pendingOperator)}`} onDone={refreshMine} run={() => w.send((c, account) => write({ client: c, account }, a.vault, inventoryVaultAbi, "acceptOperator"))} />
                 )}
-                {!a.live && (
+                {a.live && <AddInventory a={a} onDone={refreshMine} />}
+                {a.blockNumber >= a.endBlock && (
                   <>
-                    <TxButton label="Cancel resting quotes" onDone={refreshMine}
+                    <TxButton label="Pull resting quotes" onDone={refreshMine}
                       run={() => w.send((c, account) => write({ client: c, account }, a.vault, inventoryVaultAbi, "cancel"))} />
                     {!a.finalized && <TxButton label="Finalize" onDone={refreshMine} run={() => w.send((c, account) => write({ client: c, account }, a.vault, inventoryVaultAbi, "finalize"))} />}
                     <TxButton label="Withdraw inventory" className="primary" onDone={refreshMine} run={() => w.send((c, account) => write({ client: c, account }, a.vault, inventoryVaultAbi, "withdrawInventory"))} />
@@ -262,6 +272,7 @@ export default function IssuerConsole() {
           ))}
         </section>
         <WalletBalances />
+        <Faucet />
       </div>
     </main>
   );
@@ -306,7 +317,7 @@ function RFQRow({ r, onDone }: { r: R; onDone: () => void }) {
                 <td data-label="Action" className="num">
                   {r.status === 1 && b.active ? (
                     <TxButton label="Award" className="primary" onDone={onDone} pendingLabel="Deploying…"
-                      run={() => w.send((c, account) => write({ client: c, account }, d.rfq, rfqAuctionAbi, "award", [r.id, b.bidder]))} />
+                      run={() => w.send((c, account) => write({ client: c, account }, d.rfq, rfqAuctionAbi, "award", [r.id, b.bidder, b.retainerPerBlock]))} />
                   ) : (
                     <span className="muted small">{r.winner === b.bidder ? "Winner" : b.active ? "Waiting" : "Withdrawn"}</span>
                   )}
@@ -323,6 +334,34 @@ function RFQRow({ r, onDone }: { r: R; onDone: () => void }) {
             run={() => w.send((c, account) => write({ client: c, account }, d.rfq, rfqAuctionAbi, "cancelRFQ", [r.id]))} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Issuer top-up: e.g. after one side was bought or sold out (the public page shows InventoryLimited epochs). */
+function AddInventory({ a, onDone }: { a: Awaited<ReturnType<typeof loadAgreement>>; onDone: () => void }) {
+  const w = useWallet();
+  const [baseAmt, setBase] = useState("");
+  const [quoteAmt, setQuote] = useState("");
+  async function run() {
+    if (!w.client || !w.account || !w.address) throw new Error("Sign in first");
+    const b = parseUnits(baseAmt || "0", a.base.decimals);
+    const q = parseUnits(quoteAmt || "0", a.quote.decimals);
+    if (b === 0n && q === 0n) throw new Error("Enter an amount");
+    const w2 = { client: w.client, account: w.account };
+    await ensureAllowance(w2, a.base.address, w.address, a.vault, b);
+    await ensureAllowance(w2, a.quote.address, w.address, a.vault, q);
+    return w.send((c, account) => write({ client: c, account }, a.vault, inventoryVaultAbi, "addInventory", [b, q]));
+  }
+  return (
+    <div className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+      <label className="f" style={{ width: 120 }}>
+        <span className="suffix"><input inputMode="decimal" value={baseAmt} onChange={(e) => setBase(e.target.value)} placeholder="0" aria-label={`Add ${a.base.symbol}`} /><span>{a.base.symbol}</span></span>
+      </label>
+      <label className="f" style={{ width: 140 }}>
+        <span className="suffix"><input inputMode="decimal" value={quoteAmt} onChange={(e) => setQuote(e.target.value)} placeholder="0" aria-label={`Add ${a.quote.symbol}`} /><span>{a.quote.symbol}</span></span>
+      </label>
+      <TxButton label="Add inventory" onDone={onDone} run={run} pendingLabel="Approve in wallet…" />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { dep, fmt, short, blocksToDuration, BLOCK_MS, publicClient, isAddress } 
 import { listAgreements, listRFQs, loadAgreement, token } from "@/lib/agreement";
 import { write, ensureAllowance, settleAll, DAY_MS } from "@/lib/actions";
 import { TxButton, PageHead, StatusPill, Ledger } from "@/components/ui";
+import { Faucet } from "@/components/Faucet";
 
 export default function MMConsole() {
   const w = useWallet();
@@ -133,6 +134,7 @@ export default function MMConsole() {
           </div>
         ))}
       </section>
+      <Faucet />
       </div>
     </main>
   );

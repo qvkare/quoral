@@ -157,6 +157,8 @@ function Terms({ vault }: { vault: Address }) {
             </dd>
             <dt>Penalty</dt>
             <dd>{fmt(t.slashAmount, qd)} {Q} per window below {t.uptimeBps / 100}% uptime</dd>
+            <dt>Price drift cap</dt>
+            <dd>{t.maxMidMoveBps > 0 ? `the quoted mid may move at most ${(t.maxMidMoveBps / 100).toFixed(2)}% per epoch from the last proof` : "none"}</dd>
             <dt>Free in Kuru</dt>
             <dd>{fmt(a.inventory.base, bd, 4)} {a.base.symbol} and {fmt(a.inventory.quote, qd)} {Q}; the rest is in resting orders</dd>
             <dt>Committed</dt>
@@ -269,6 +271,9 @@ function Activity({ a }: { a: AgreementView }) {
         if (e?.eventName === "OperatorChanged") push(l, `Operator key replaced by both parties: now ${short(e.args.newOperator as string)}.`);
         if (e?.eventName === "Finalized") push(l, "Agreement finalized.");
         if (e?.eventName === "InventoryWithdrawn") push(l, "Inventory returned to the issuer.");
+        if (e?.eventName === "InventoryLimited")
+          push(l, `Epoch ${e.args.epoch}: ${e.args.askShort ? a.base.symbol : a.quote.symbol} inventory used up, so the vault posted all it had on that side.`);
+        if (e?.eventName === "InventoryAdded") push(l, `Issuer added ${fmt(e.args.baseAmount as bigint, a.base.decimals, 4)} ${a.base.symbol} and ${fmt(e.args.quoteAmount as bigint, qd)} ${Q} of inventory.`);
       }
       return rows.sort((x, y) => Number(y.block - x.block)).slice(0, 25);
     },

@@ -63,6 +63,10 @@ const HUMAN: Record<string, string> = {
   SpreadTooWide: "Quoted spread is wider than the SLA allows.",
   DepthTooThin: "Quoted depth is below the SLA minimum.",
   PostOnlyError: "The quote would cross the book (post-only).",
+  MidMovedTooFar: "The quoted mid moved further from the last proof than the agreement allows per epoch.",
+  NoTwoSidedQuote: "Quote both sides (one side alone is allowed only once its inventory is used up).",
+  BidChanged: "That bid changed since you loaded it. Review the new retainer and award again.",
+  OrderAlreadyFilledOrCancelled: "One of those orders was already filled or cancelled.",
   ERC20InsufficientBalance: "Insufficient token balance.",
   ERC20InsufficientAllowance: "Token approval is too low.",
 };

@@ -52,7 +52,7 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
   const bw = n > 0 ? (W - 1) / n : 0;
 
   // map a price to a staff step (0 = bottom line, 8 = top line, in half-gaps) over the visible quotes' range
-  const prices = visible.flatMap((b) => (b.bid !== undefined && b.ask !== undefined ? [b.bid, b.ask] : []));
+  const prices = visible.flatMap((b) => [b.bid, b.ask].filter((p): p is number => p !== undefined));
   let lo = prices.length ? Math.min(...prices) : 0;
   let hi = prices.length ? Math.max(...prices) : 1;
   if (hi - lo < hi * 1e-6) {
@@ -101,7 +101,7 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
             const showNum = spec.text && i % numberEvery === 0 && x + 4 > tempoW;
             const title =
               b.status === 1
-                ? `Epoch ${b.epoch}: bid ${b.bid?.toFixed(2)}, ask ${b.ask?.toFixed(2)}, spread ${b.spreadBps} bps, proven at block ${b.block}`
+                ? `Epoch ${b.epoch}: bid ${b.bid?.toFixed(2) ?? "none (quote inventory used up)"}, ask ${b.ask?.toFixed(2) ?? "none (base inventory used up)"}, spread ${b.spreadBps} bps, proven at block ${b.block}`
                 : b.status === 2
                   ? `Epoch ${b.epoch}: venue paused, excused`
                   : isCurrent
@@ -120,6 +120,10 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
 
                 {b.status === 1 && b.bid !== undefined && b.ask !== undefined && (
                   <Chord key={`c${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} sb={toStep(b.bid)} sa={toStep(b.ask)} yOf={yOf} />
+                )}
+                {/* one voice: the other side's inventory was used up and the vault posted all it had */}
+                {b.status === 1 && (b.bid === undefined) !== (b.ask === undefined) && (
+                  <Note key={`n${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} s={toStep((b.bid ?? b.ask)!)} yOf={yOf} />
                 )}
 
                 {b.status === 2 && spec.text && (
@@ -190,6 +194,18 @@ function Chord({ cx, g, rx, ry, stemLen, sb, sa, yOf }: { cx: number; g: number;
       <ellipse className="note" cx={cx} cy={yb} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${yb})`} />
       <ellipse className="note" cx={cx} cy={ya} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${ya})`} />
       <line className="stem" strokeWidth={sw} x1={sx} x2={sx} y1={stemDown ? ya : yb} y2={stemDown ? yb + stemLen : ya - stemLen} />
+    </g>
+  );
+}
+
+function Note({ cx, g, rx, ry, stemLen, s, yOf }: { cx: number; g: number; rx: number; ry: number; stemLen: number; s: number; yOf: (s: number) => number }) {
+  const y = yOf(s);
+  const stemDown = s >= 4;
+  const sx = stemDown ? cx - rx * 0.9 : cx + rx * 0.9;
+  return (
+    <g className="fresh">
+      <ellipse className="note" cx={cx} cy={y} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${y})`} />
+      <line className="stem" strokeWidth={Math.max(1, g * 0.09)} x1={sx} x2={sx} y1={y} y2={stemDown ? y + stemLen : y - stemLen} />
     </g>
   );
 }

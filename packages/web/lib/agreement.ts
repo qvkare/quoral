@@ -89,8 +89,9 @@ export async function loadAgreement(vault: Address, stripLen = 96, barsLen = 0) 
     return {
       epoch: e,
       status: st,
-      bid: has ? pr[0] / pp : undefined,
-      ask: has ? pr[1] / pp : undefined,
+      // a side whose inventory was used up is quoted alone (InventoryLimited): its price is 0 in the proof
+      bid: has && pr[0] > 0 ? pr[0] / pp : undefined,
+      ask: has && pr[1] > 0 ? pr[1] / pp : undefined,
       spreadBps: has ? pr[2] : undefined,
       block: has ? pr[3] : undefined,
       bidDepth: has ? pr[4] : undefined,
