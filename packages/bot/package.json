@@ -9,7 +9,8 @@
     "privy:setup": "tsx src/privy-setup.ts",
     "demo:attack": "tsx src/demo-attack.ts",
     "test": "tsx --test src/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "testnet:finish": "tsx src/testnet-finish.ts"
   },
   "dependencies": {
     "@quoral/shared": "workspace:*",

@@ -54,6 +54,43 @@ Anyone can call `checkEpoch(e)`. It settles every unsettled ended epoch: quoted 
 | **`MarginAccount.protocolPaused` readable** | ❌ **internal, no getter.** Quoral detects it with a static call to `debitUser`, which checks `protocolActive` before `verifiedMarket`, so the revert selector is `ProtocolPaused()` exactly when paused (`KuruV1Adapter.venuePaused`) |
 | `addBuyOrder` requires `marketActive`, so SOFT_PAUSED blocks quoting | ✅ → treated as an excused epoch |
 
+## Live testnet demo
+
+**https://quoral.qvkare.com** reads Monad testnet (chain 10143). Kuru's own testnet markets run Kuru v2 (AccountCore),
+while Quoral v1 targets the Kuru v1 OrderBook that is live on mainnet, so the testnet demo quotes on a test order book
+with the Kuru v1 interface (`test/mocks/MockKuru.sol`) and test tokens. The site says so under the header.
+
+| Contract | Address |
+|---|---|
+| AgreementFactory | `0xd81EB766691c8DA4c80580F544c48B9cb3220BbF` |
+| RFQAuction | `0x3A0c8eEA637bfff6556a6bFfe4Decd1fC8dA428E` |
+| BondVault | `0xBb262974478C984218da911E3B1632BBfE03984E` |
+| DisclosureRegistry | `0x0954A3bD8dD78222B6574127D418820DE3e59eC7` |
+| CREKeeperReceiver | `0xF9bfA6D01F9f8B18CEb8C17c61DFeaCD7eC695E7` |
+| Demo agreement (InventoryVault) | `0x79Fc5C5F56F2b41CfBd333Ce954Bd4EEb5Ce1724` |
+| Heartbeat / Paystream | `0x851FAa81834A147E037BFA1a133fe158BDDccc8A` / `0xa742A923893dbD06f328aF30e02E7e2a580390B8` |
+| Test order book (Kuru v1 interface) | `0xA6969f93448056A7f477F69eaC3a77EA5988CAFd` |
+| Test XAUt0 / test USDC | `0xAd0427f4502Ddf34b15F8e977E6B5a1dC1A08f8f` / `0x2480d7aDbe32E0Cdf09B2ce34d7CefB387cb47CE` |
+
+The demo agreement uses 600-block epochs (about 3 minutes) for 30 days. The house quoter and keeper run as the
+Cloudflare Worker in `packages/tick-worker`: a cron trigger every minute, at most one signed transaction per tick, and
+a read-only health check at its workers.dev URL.
+
+Deploying it yourself:
+
+```bash
+cd contracts && forge script script/DeployTestnet.s.sol --rpc-url monad_testnet --broadcast --slow
+```
+
+```bash
+pnpm --filter @quoral/bot testnet:finish
+```
+
+The second step exists because of Monad's reserve balance rule: an account holding less than 10 MON can send a
+transaction that dips under the reserve only if it sent nothing in the previous 3 blocks. A forge broadcast sends too
+fast for small testnet wallets, so `testnet-finish` completes the RFQ, bids and award with 4 blocks between sends
+and is safe to rerun.
+
 ## Repo layout
 
 | Path | What |
@@ -61,6 +98,7 @@ Anyone can call `checkEpoch(e)`. It settles every unsettled ended epoch: quoted 
 | `contracts/` | Foundry. `src/` core contracts, `test/Quoral.t.sol` (24 tests incl. fuzz), `test/mocks/MockKuru.sol` (Kuru-faithful mock), `script/Deploy.s.sol` (mainnet/testnet), `script/DeployLocal.s.sol` (full demo on anvil) |
 | `packages/shared` | Generated typed ABIs, deployments, chains (Monad 143 / 10143), Kuru price/size helpers |
 | `packages/bot` | House quoter (A–S + inventory skew + SLA constraints), fallback keeper, Privy policy + setup, attack demo |
+| `packages/tick-worker` | Cloudflare Worker that runs the house quoter and keeper on a one-minute cron for the testnet demo, with a read-only health check |
 | `cre/quoral-keeper` | Chainlink CRE workflow (cron → EVM read → signed report → `CREKeeperReceiver`), typechecked against `@chainlink/cre-sdk` 1.23 |
 | `packages/indexer` | Envio HyperIndex: factory-driven dynamic registration of vault/heartbeat/paystream, RFQs, bonds, Kuru fills |
 | `packages/web` | Next.js 15: landing page, agreements explorer, issuer console (validated SLA form and cost summary), MM console, public `/<token>` terms page, `/badge/<agreement>` SVG; Mera passkey sign-in with time-to-first-tx. Design: the live agreement is drawn as a musical score (one bar per epoch, a chord per proven quote, a red-pencil rest per clawed-back epoch); see [`packages/web/DESIGN.md`](packages/web/DESIGN.md) |
@@ -156,7 +194,8 @@ AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filter @quoral/bot 
 - [x] MIT licence
 - [ ] Public repo (the repo is private for now; make it public before submitting)
 - [ ] ≤ 3 min video
-- [ ] Mainnet/testnet contract addresses (fill from `contracts/deployments/143.json` / `10143.json`)
+- [x] Testnet contract addresses (above)
+- [ ] Mainnet contract addresses (`contracts/deployments/143.json` after a mainnet deploy)
 - [ ] AI tooling disclosure (in the submission form)
 - [x] Prior work statement (below)
 

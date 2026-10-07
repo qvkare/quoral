@@ -12,6 +12,6 @@ crons = ["* * * * *"]
 [vars]
 CHAIN_ID = "10143"
 RPC_URL = "https://testnet-rpc.monad.xyz"
-VAULT = "0x0000000000000000000000000000000000000000" # set after `forge script DeployTestnet`
+VAULT = "0x79Fc5C5F56F2b41CfBd333Ce954Bd4EEb5Ce1724"
 SETTLE_EVERY = "10"
 BLOCK_MS = "306"
