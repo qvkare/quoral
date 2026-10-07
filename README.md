@@ -201,7 +201,7 @@ AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filter @quoral/bot 
 - **Inventory shortfall is the issuer's**: a side that runs out is excused by posting everything left (`InventoryLimited`); a two-sided SLA needs inventory on both sides at the start.
 - **No volume or price targets, no token loans, no call options** exist in the contract by construction. The fee is time-based, not per trade.
 - The Envio indexer runs on the testnet demo through the public RPC (HyperSync now needs an API token); hosting it on Envio Cloud takes a GitHub connection in the Envio dashboard. The web app reads live state straight from RPC and uses the indexer only for history.
-- The CRE workflow is typechecked against the real SDK and has a `local-simulation` target that writes through Chainlink's MockKeystoneForwarder on Monad testnet; running it needs `cre login`. Deploying to a DON needs Chainlink's approval.
+- The CRE workflow runs in CRE's local simulation against Monad testnet and writes through Chainlink's MockKeystoneForwarder (see [Testnet record](#testnet-record)); deploying it to a DON needs Chainlink's deploy access.
 - The testnet agreement was deployed before the first-epoch drift fix (commit `ccb2e5c`), so its epoch 0 was uncapped; every later epoch is capped.
 
 ## Bounty mapping
@@ -348,7 +348,14 @@ quoting falls behind. That deployment was then replaced by the current one.
 
 ### Chainlink CRE
 
-`CREKeeperReceiver` on testnet accepts reports from Chainlink's MockKeystoneForwarder. Running
+The keeper workflow (`cre/quoral-keeper`, CRE CLI v1.37) ran with
 `cre workflow simulate quoral-keeper --target local-simulation --non-interactive --trigger-index 0 --broadcast` from
-`cre/` sends the workflow's settlement report through it; this needs `cre login`, and the resulting transaction will be
-listed here.
+`cre/`. It read the factory and the agreement through the EVM capability, built one job (`checkEpoch(39)`), and sent
+the signed report through Chainlink's MockKeystoneForwarder to `CREKeeperReceiver`:
+
+| Step | Transaction |
+|---|---|
+| CRE report: forwarder `ReportProcessed(success = true)`, receiver `JobResult(ok = true)`, epochs 36 to 39 settled as quoted, 4 epochs of retainer booked to the market maker | [`0x09a03c83…`](https://testnet.monadvision.com/tx/0x09a03c8398a51cfe3d4a7ca6b8a12d47aa22ded4af261c8ebf0e5e58d1bfa6fc) |
+
+By then the agreement had run 40 epochs (about 6.7 hours) with every epoch proven and none missed. Deploying the
+workflow to a DON needs Chainlink's deploy access, which this account has not been granted yet.
