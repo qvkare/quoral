@@ -18,6 +18,8 @@ struct Terms {
     uint256 bondAmount; // MM bond, in BondVault token
     uint256 slashAmount; // liquidated damages per uptime-window breach
     bool pauseExcused; // venue pauses excuse missed epochs
+    uint16 maxMidMoveBps; // max move of the quoted mid per epoch vs the last proven mid (0 = no cap)
+    uint32 startDelayBlocks; // setup time between the award and epoch 0
 }
 
 /// @notice SLA proof produced inside the requote transaction from the vault's own fresh quotes.
@@ -28,6 +30,15 @@ struct Proof {
     uint64 blockNumber;
     uint128 bidDepthQuote; // raw quote units within band
     uint128 askDepthQuote;
+}
+
+/// @notice The vault's price memory in one storage slot: the drift cap and one-sided quotes measure against it.
+struct PriceRef {
+    uint64 lastMid2; // 2 x mid of the latest accepted requote, Kuru price units (0 = never quoted)
+    uint48 lastEpoch; // epoch of that requote
+    uint64 anchorMid2; // lastMid2 as it stood at the first requote of the anchor epoch
+    uint48 anchorEpoch1; // anchor epoch + 1 (0 = none yet)
+    uint32 anchorGap; // epochs between the anchor's requote and the anchor epoch
 }
 
 /// @notice Kuru price/size scale for a market.

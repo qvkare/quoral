@@ -15,6 +15,24 @@ export const inventoryVaultAbi = [
   },
   {
     "type": "function",
+    "name": "addInventory",
+    "inputs": [
+      {
+        "name": "baseAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "bondVault",
     "inputs": [],
     "outputs": [
@@ -195,6 +213,16 @@ export const inventoryVaultAbi = [
                 "name": "pauseExcused",
                 "type": "bool",
                 "internalType": "bool"
+              },
+              {
+                "name": "maxMidMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "startDelayBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
               }
             ]
           },
@@ -385,6 +413,19 @@ export const inventoryVaultAbi = [
   },
   {
     "type": "function",
+    "name": "minOrderSize",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "mm",
     "inputs": [],
     "outputs": [
@@ -470,6 +511,46 @@ export const inventoryVaultAbi = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "priceRef",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct PriceRef",
+        "components": [
+          {
+            "name": "lastMid2",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "lastEpoch",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "anchorMid2",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "anchorEpoch1",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "anchorGap",
+            "type": "uint32",
+            "internalType": "uint32"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -613,6 +694,16 @@ export const inventoryVaultAbi = [
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -693,6 +784,56 @@ export const inventoryVaultAbi = [
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InventoryAdded",
+    "inputs": [
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "baseAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InventoryLimited",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bidShort",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "askShort",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -882,6 +1023,27 @@ export const inventoryVaultAbi = [
     "type": "error",
     "name": "LengthMismatch",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MidMovedTooFar",
+    "inputs": [
+      {
+        "name": "mid2",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "anchorMid2",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "allowedBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -3147,6 +3309,11 @@ export const rfqAuctionAbi = [
         "name": "bidder",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "expectedRetainerPerBlock",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
@@ -3375,6 +3542,16 @@ export const rfqAuctionAbi = [
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       },
@@ -3518,6 +3695,16 @@ export const rfqAuctionAbi = [
                 "name": "pauseExcused",
                 "type": "bool",
                 "internalType": "bool"
+              },
+              {
+                "name": "maxMidMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "startDelayBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
               }
             ]
           }
@@ -3687,6 +3874,17 @@ export const rfqAuctionAbi = [
     "type": "error",
     "name": "AboveCap",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BidChanged",
+    "inputs": [
+      {
+        "name": "retainerPerBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -3911,6 +4109,16 @@ export const agreementFactoryAbi = [
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       },
@@ -4156,6 +4364,16 @@ export const agreementFactoryAbi = [
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -4309,6 +4527,16 @@ export const agreementFactoryAbi = [
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -4426,6 +4654,16 @@ export const agreementFactoryAbi = [
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -5033,6 +5271,19 @@ export const iKuruOrderBookAbi = [
   },
   {
     "type": "function",
+    "name": "batchCancelOrdersNoRevert",
+    "inputs": [
+      {
+        "name": "orderIds",
+        "type": "uint40[]",
+        "internalType": "uint40[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "batchUpdate",
     "inputs": [
       {
@@ -5413,6 +5664,19 @@ export const mockOrderBookAbi = [
   },
   {
     "type": "function",
+    "name": "batchCancelOrdersNoRevert",
+    "inputs": [
+      {
+        "name": "ids",
+        "type": "uint40[]",
+        "internalType": "uint40[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "batchUpdate",
     "inputs": [
       {
@@ -5613,6 +5877,19 @@ export const mockOrderBookAbi = [
   },
   {
     "type": "function",
+    "name": "minSize",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "orders",
     "inputs": [
       {
@@ -5649,6 +5926,74 @@ export const mockOrderBookAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "placeAndExecuteMarketBuy",
+    "inputs": [
+      {
+        "name": "quoteSize",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "isMargin",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isFillOrKill",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "baseOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "placeAndExecuteMarketSell",
+    "inputs": [
+      {
+        "name": "size",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "isMargin",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isFillOrKill",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "quoteOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -5704,6 +6049,24 @@ export const mockOrderBookAbi = [
   },
   {
     "type": "function",
+    "name": "setLimits",
+    "inputs": [
+      {
+        "name": "tick",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "min",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setState",
     "inputs": [
       {
@@ -5724,6 +6087,19 @@ export const mockOrderBookAbi = [
         "name": "",
         "type": "uint96",
         "internalType": "uint96"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tickSize",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "stateMutability": "view"
@@ -5841,6 +6217,11 @@ export const mockOrderBookAbi = [
   },
   {
     "type": "error",
+    "name": "InsufficientLiquidity",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "LengthMismatch",
     "inputs": []
   },
@@ -5856,7 +6237,27 @@ export const mockOrderBookAbi = [
   },
   {
     "type": "error",
+    "name": "OrderAlreadyFilledOrCancelled",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "PostOnlyError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SizeError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SlippageExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TickSizeError",
     "inputs": []
   }
 ] as const;

@@ -65,8 +65,15 @@ library KuruV1Adapter {
         }
     }
 
+    /// @dev No-revert variant: any of these quotes may have been filled since they were placed, and Kuru's
+    ///      `batchCancelOrders` reverts on a filled id, which would leave the rest of the inventory on the book.
     function cancel(address market, uint40[] memory ids) internal {
-        if (ids.length > 0) IKuruOrderBook(market).batchCancelOrders(ids);
+        if (ids.length > 0) IKuruOrderBook(market).batchCancelOrdersNoRevert(ids);
+    }
+
+    /// @notice Smallest order size the market accepts (Kuru size units).
+    function minSize(address market) internal view returns (uint96 size) {
+        (,,,,,,, size,,,) = IKuruOrderBook(market).getMarketParams();
     }
 
     /// @notice True when the venue blocks quoting: market not ACTIVE or MarginAccount protocol paused.
@@ -74,9 +81,8 @@ library KuruV1Adapter {
     ///      `verifiedMarket`, so a static call from a non-market reverts with `ProtocolPaused()` iff paused.
     function venuePaused(address market, address marginAccount, address token) internal view returns (bool) {
         if (IKuruOrderBook(market).marketState() != IKuruOrderBook.MarketState.ACTIVE) return true;
-        (bool ok, bytes memory ret) = marginAccount.staticcall(
-            abi.encodeCall(IKuruMarginAccount.debitUser, (address(this), token, 0))
-        );
+        (bool ok, bytes memory ret) =
+            marginAccount.staticcall(abi.encodeCall(IKuruMarginAccount.debitUser, (address(this), token, 0)));
         return !ok && ret.length >= 4 && bytes4(ret) == IKuruErrors.ProtocolPaused.selector;
     }
 }

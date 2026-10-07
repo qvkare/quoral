@@ -61,9 +61,10 @@ contract MockMarginAccount {
         balances[user][token] -= amount;
     }
 
-    function creditUser(address user, address token, uint256 amount, bool) external protocolActive {
+    function creditUser(address user, address token, uint256 amount, bool useMargin) external protocolActive {
         if (!verifiedMarket[msg.sender]) revert OnlyVerifiedMarketsAllowed();
-        balances[user][token] += amount;
+        if (useMargin) balances[user][token] += amount;
+        else IERC20(token).transfer(user, amount);
     }
 
     function getBalance(address user, address token) external view returns (uint256) {
@@ -71,12 +72,20 @@ contract MockMarginAccount {
     }
 }
 
-/// @notice Minimal Kuru-like CLOB: post-only crossing check, margin-funded orders, owner-only cancel, fills.
+/// @notice Minimal Kuru-like CLOB: post-only crossing check, margin-funded orders, owner-only cancel, market
+///         orders that fill resting quotes (partial fills included). Cancel semantics follow Kuru v1: a filled
+///         order keeps its owner and reads as filled, `batchCancelOrders` reverts on it, while
+///         `batchCancelOrdersNoRevert` and the cancels inside `batchUpdate` skip it; a cancelled order is deleted.
 contract MockOrderBook {
     error PostOnlyError();
     error MarketStateError();
     error OnlyOwnerAllowedError();
+    error OrderAlreadyFilledOrCancelled();
     error LengthMismatch();
+    error InsufficientLiquidity();
+    error SlippageExceeded();
+    error TickSizeError();
+    error SizeError();
 
     struct Order {
         address owner;
@@ -108,6 +117,8 @@ contract MockOrderBook {
     uint256 public immutable quoteDec;
 
     IKuruOrderBook.MarketState public marketState;
+    uint32 public tickSize = 1;
+    uint96 public minSize = 1;
     uint40 public counter;
     mapping(uint40 => Order) public orders;
     uint40[] internal _active; // resting order ids (swap-remove), keeps best-price scans O(open orders)
@@ -142,12 +153,19 @@ contract MockOrderBook {
         marketState = s;
     }
 
+    /// @notice Test helper: mirror a real market's tick and minimum size (e.g. Kuru XAUt0-USDC: 100 and 2000).
+    function setLimits(uint32 tick, uint96 min) external {
+        tickSize = tick;
+        minSize = min;
+    }
+
     function getMarketParams()
         external
         view
         returns (uint32, uint96, address, uint256, address, uint256, uint32, uint96, uint96, uint256, uint256)
     {
-        return (pricePrecision, sizePrecision, base, baseDec, quote, quoteDec, 1, 1, type(uint96).max, 0, 0);
+        return
+            (pricePrecision, sizePrecision, base, baseDec, quote, quoteDec, tickSize, minSize, type(uint96).max, 0, 0);
     }
 
     function _quoteAmt(uint256 price, uint256 size) internal view returns (uint256) {
@@ -182,6 +200,8 @@ contract MockOrderBook {
 
     function _add(address owner, uint32 price, uint96 size, bool isBuy, bool postOnly) internal {
         if (marketState != IKuruOrderBook.MarketState.ACTIVE) revert MarketStateError();
+        if (price == 0 || price % tickSize != 0) revert TickSizeError();
+        if (size < minSize) revert SizeError();
         (uint256 bid, uint256 ask) = _best();
         if (postOnly) {
             if (isBuy && price >= ask) revert PostOnlyError();
@@ -196,11 +216,16 @@ contract MockOrderBook {
         emit OrderCreated(id, owner, size, price, isBuy);
     }
 
-    function _cancel(uint40 id) internal {
-        Order storage o = orders[id];
-        if (o.owner != msg.sender) revert OnlyOwnerAllowedError();
-        if (!o.active) return;
+    function _cancel(uint40 id, bool revertIfFilled) internal {
+        Order memory o = orders[id];
+        if (o.owner != msg.sender) revert OnlyOwnerAllowedError(); // also a deleted (cancelled) order
+        if (!o.active) {
+            if (revertIfFilled) revert OrderAlreadyFilledOrCancelled();
+            delete orders[id];
+            return;
+        }
         _deactivate(id);
+        delete orders[id];
         if (o.isBuy) margin.creditUser(o.owner, quote, _quoteAmt(o.price, o.size), true);
         else margin.creditUser(o.owner, base, _baseAmt(o.size), true);
     }
@@ -224,7 +249,7 @@ contract MockOrderBook {
         if (marketState == IKuruOrderBook.MarketState.HARD_PAUSED) revert MarketStateError();
         if (buyPrices.length != buySizes.length || sellPrices.length != sellSizes.length) revert LengthMismatch();
         for (uint256 i; i < cancelIds.length; ++i) {
-            _cancel(cancelIds[i]);
+            _cancel(cancelIds[i], false);
         }
         if (cancelIds.length > 0) emit OrdersCanceled(cancelIds, msg.sender);
         for (uint256 i; i < buyPrices.length; ++i) {
@@ -237,9 +262,105 @@ contract MockOrderBook {
 
     function batchCancelOrders(uint40[] calldata ids) external {
         for (uint256 i; i < ids.length; ++i) {
-            _cancel(ids[i]);
+            _cancel(ids[i], true);
         }
         emit OrdersCanceled(ids, msg.sender);
+    }
+
+    function batchCancelOrdersNoRevert(uint40[] calldata ids) external {
+        for (uint256 i; i < ids.length; ++i) {
+            _cancel(ids[i], false);
+        }
+        emit OrdersCanceled(ids, msg.sender);
+    }
+
+    // ------------------------------------------------------------------ market orders (Kuru v1 signatures)
+
+    /// @param quoteSize quote to spend, in price-precision units (Kuru: `_pricePrecisionToQuoteAssetPrecision`)
+    /// @return baseOut base received, in base token decimals
+    function placeAndExecuteMarketBuy(uint96 quoteSize, uint256 minAmountOut, bool isMargin, bool isFillOrKill)
+        external
+        returns (uint256 baseOut)
+    {
+        if (marketState != IKuruOrderBook.MarketState.ACTIVE) revert MarketStateError();
+        _pullIn(quote, (uint256(quoteSize) * 10 ** quoteDec) / pricePrecision, isMargin);
+        uint256 left = quoteSize;
+        while (left > 0) {
+            uint40 id = _bestId(false);
+            if (id == 0) break;
+            Order storage o = orders[id];
+            uint256 can = (left * sizePrecision) / o.price;
+            if (can == 0) break;
+            uint96 sz = can >= o.size ? o.size : uint96(can);
+            left -= (uint256(o.price) * sz) / sizePrecision;
+            baseOut += _fillMaker(id, sz);
+        }
+        if (left > 0) {
+            if (isFillOrKill) revert InsufficientLiquidity();
+            margin.creditUser(msg.sender, quote, (left * 10 ** quoteDec) / pricePrecision, isMargin);
+        }
+        if (baseOut < minAmountOut) revert SlippageExceeded();
+        margin.creditUser(msg.sender, base, baseOut, isMargin);
+    }
+
+    /// @param size base to sell, in size-precision units
+    /// @return quoteOut quote received, in quote token decimals
+    function placeAndExecuteMarketSell(uint96 size, uint256 minAmountOut, bool isMargin, bool isFillOrKill)
+        external
+        returns (uint256 quoteOut)
+    {
+        if (marketState != IKuruOrderBook.MarketState.ACTIVE) revert MarketStateError();
+        _pullIn(base, _baseAmt(size), isMargin);
+        uint96 left = size;
+        while (left > 0) {
+            uint40 id = _bestId(true);
+            if (id == 0) break;
+            uint96 sz = left >= orders[id].size ? orders[id].size : left;
+            left -= sz;
+            quoteOut += _fillMaker(id, sz);
+        }
+        if (left > 0) {
+            if (isFillOrKill) revert InsufficientLiquidity();
+            margin.creditUser(msg.sender, base, _baseAmt(left), isMargin);
+        }
+        if (quoteOut < minAmountOut) revert SlippageExceeded();
+        margin.creditUser(msg.sender, quote, quoteOut, isMargin);
+    }
+
+    function _pullIn(address token, uint256 amount, bool isMargin) internal {
+        if (isMargin) margin.debitUser(msg.sender, token, amount);
+        else IERC20(token).transferFrom(msg.sender, address(margin), amount);
+    }
+
+    /// @dev best resting ask (isBuy = false) or bid (isBuy = true); oldest first at a price, like Kuru's FIFO
+    function _bestId(bool isBuy) internal view returns (uint40 best) {
+        for (uint256 i; i < _active.length; ++i) {
+            uint40 id = _active[i];
+            Order storage o = orders[id];
+            if (o.isBuy != isBuy) continue;
+            if (best == 0) {
+                best = id;
+                continue;
+            }
+            Order storage b = orders[best];
+            bool better = isBuy ? o.price > b.price : o.price < b.price;
+            if (better || (o.price == b.price && id < best)) best = id;
+        }
+    }
+
+    /// @dev Fills `sz` of resting order `id`; the maker is credited in margin. Returns what the taker receives.
+    function _fillMaker(uint40 id, uint96 sz) internal returns (uint256 takerGets) {
+        Order storage o = orders[id];
+        o.size -= sz;
+        if (o.size == 0) _deactivate(id);
+        if (o.isBuy) {
+            margin.creditUser(o.owner, base, _baseAmt(sz), true);
+            takerGets = _quoteAmt(o.price, sz);
+        } else {
+            margin.creditUser(o.owner, quote, _quoteAmt(o.price, sz), true);
+            takerGets = _baseAmt(sz);
+        }
+        emit Trade(id, o.owner, o.isBuy, o.price, o.size, msg.sender, tx.origin, sz);
     }
 
     /// @notice Test helper: a taker fully fills resting order `id`; maker is credited in margin (like Kuru).

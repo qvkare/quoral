@@ -28,6 +28,11 @@
         "name": "bidder",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "expectedRetainerPerBlock",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
@@ -256,6 +261,16 @@
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       },
@@ -399,6 +414,16 @@
                 "name": "pauseExcused",
                 "type": "bool",
                 "internalType": "bool"
+              },
+              {
+                "name": "maxMidMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "startDelayBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
               }
             ]
           }
@@ -568,6 +593,17 @@
     "type": "error",
     "name": "AboveCap",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BidChanged",
+    "inputs": [
+      {
+        "name": "retainerPerBlock",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

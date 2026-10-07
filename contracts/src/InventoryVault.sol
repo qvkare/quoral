@@ -5,15 +5,15 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Terms, Proof, MarketScale} from "./libraries/Types.sol";
+import {Terms, Proof, MarketScale, PriceRef} from "./libraries/Types.sol";
 import {SLALib} from "./libraries/SLALib.sol";
 import {KuruV1Adapter} from "./adapters/KuruV1Adapter.sol";
 import {IHeartbeat, IPaystream, IBondVault} from "./interfaces/IQuoral.sol";
 
 /// @title InventoryVault
 /// @notice Root contract of one Quoral agreement (its address *is* the agreement id).
-///         Owns the Kuru margin balance and every resting order. The MM's operator key can only
-///         `requote` / `cancel`; inventory leaves only to the issuer, only after notice or expiry.
+///         Owns the Kuru margin balance and every resting order. The MM's operator key can only `requote`;
+///         inventory leaves only to the issuer, only after notice or expiry.
 contract InventoryVault is Initializable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -39,8 +39,11 @@ contract InventoryVault is Initializable, ReentrancyGuard {
     error NoticeAlreadyGiven();
     error NoPendingOperator();
     error SameProposer();
+    error MidMovedTooFar(uint256 mid2, uint256 anchorMid2, uint256 allowedBps);
 
     event Requoted(uint256 indexed epoch, Proof proof, uint256 bidLevels, uint256 askLevels);
+    event InventoryLimited(uint256 indexed epoch, bool bidShort, bool askShort);
+    event InventoryAdded(address indexed by, uint256 baseAmount, uint256 quoteAmount);
     event Canceled(address indexed by, uint40[] orderIds);
     event NoticeGiven(address indexed by, uint64 newEndBlock);
     event OperatorProposed(address indexed by, address indexed operator);
@@ -68,6 +71,10 @@ contract InventoryVault is Initializable, ReentrancyGuard {
     address public pendingOperator;
     address public operatorProposer;
 
+    /// @notice Smallest order the market accepts; a side that cannot fund one more of these is "short".
+    uint96 public minOrderSize;
+    PriceRef internal _ref;
+
     /// @dev Kuru order ids placed by the latest requote. The next requote (or cancel) removes exactly these,
     ///      so a restarted or careless operator can never leave stale quotes that cross the new ones.
     uint40[] internal _openOrders;
@@ -90,6 +97,8 @@ contract InventoryVault is Initializable, ReentrancyGuard {
         bondVault = p.bondVault;
         startBlock = p.startBlock;
         endBlock = p.startBlock + p.terms.durationBlocks;
+
+        minOrderSize = KuruV1Adapter.minSize(p.terms.market);
 
         KuruV1Adapter.depositToMargin(p.marginAccount, s.baseToken, p.terms.baseInventory);
         KuruV1Adapter.depositToMargin(p.marginAccount, s.quoteToken, p.terms.quoteInventory);
@@ -116,7 +125,9 @@ contract InventoryVault is Initializable, ReentrancyGuard {
 
     /// @notice Replace the vault's quotes in one tx (its previous orders are cancelled automatically, post-only
     ///         placement), then prove the SLA from these exact quotes.
-    /// Reverts (no heartbeat) on crossing (Kuru PostOnlyError), wide spread or thin depth.
+    /// Reverts (no heartbeat) on crossing (Kuru PostOnlyError), wide spread, thin depth or a mid that moved
+    /// further than `maxMidMoveBps` per epoch. A side whose inventory is used up may be thin or empty, as long as
+    /// everything the vault holds of that token is posted inside the band (`InventoryLimited`).
     function requote(
         uint32[] calldata bidPrices,
         uint96[] calldata bidSizes,
@@ -128,22 +139,57 @@ contract InventoryVault is Initializable, ReentrancyGuard {
 
         _openOrders = KuruV1Adapter.requote(_terms.market, bidPrices, bidSizes, askPrices, askSizes, _openOrders);
 
-        Proof memory proof = SLALib.evaluate(_scale, bidPrices, bidSizes, askPrices, askSizes, _terms.maxSpreadBps);
-        SLALib.enforce(proof, _terms.maxSpreadBps, _terms.minDepthQuote);
+        MarketScale memory s = _scale;
+        uint16 maxSpread = _terms.maxSpreadBps;
+        uint256 minDepth = _terms.minDepthQuote;
+        (Proof memory proof, SLALib.Detail memory d) =
+            SLALib.evaluate(s, bidPrices, bidSizes, askPrices, askSizes, maxSpread, _ref.lastMid2);
+
+        // only read margin when a side is under the depth term: what is left after this placement
+        bool bidShort;
+        bool askShort;
+        if (proof.bidDepthQuote < minDepth) {
+            bidShort =
+                KuruV1Adapter.marginBalance(marginAccount, s.quoteToken) < SLALib.notional(s, d.mid2 / 2, minOrderSize);
+        }
+        if (proof.askDepthQuote < minDepth) {
+            askShort = KuruV1Adapter.marginBalance(marginAccount, s.baseToken) < SLALib.baseAmount(s, minOrderSize);
+        }
+        SLALib.enforce(proof, d, maxSpread, minDepth, bidShort, askShort);
+        _checkDrift(epoch, d.mid2);
 
         IHeartbeat(heartbeat).record(epoch, proof);
+        if (bidShort || askShort) emit InventoryLimited(epoch, bidShort, askShort);
         emit Requoted(epoch, proof, bidPrices.length, askPrices.length);
     }
 
-    /// @notice Pull all of the vault's resting quotes. Operator while live; issuer after the end (to free inventory).
-    function cancel() external nonReentrant {
-        if (msg.sender == operator) {
-            if (!isLive()) revert NotLive();
-        } else if (msg.sender == issuer) {
-            if (block.number < endBlock) revert NotEnded();
-        } else {
-            revert NotOperator();
+    /// @dev Caps how far the quoted mid may move: at most `maxMidMoveBps` per epoch from the mid proven before
+    ///      this epoch began (scaled by the epochs since then), so every requote within an epoch is measured
+    ///      against the same anchor and a key cannot walk the price away from the market in small steps.
+    function _checkDrift(uint256 epoch, uint256 mid2) internal {
+        PriceRef memory r = _ref;
+        if (r.anchorEpoch1 != epoch + 1) {
+            r.anchorMid2 = r.lastMid2;
+            r.anchorGap = r.lastMid2 == 0 ? 0 : uint32(epoch - r.lastEpoch);
+            r.anchorEpoch1 = uint48(epoch + 1);
         }
+        uint256 cap = _terms.maxMidMoveBps;
+        if (cap > 0 && r.anchorMid2 > 0) {
+            uint256 a = r.anchorMid2;
+            uint256 diff = mid2 > a ? mid2 - a : a - mid2;
+            if (diff * 1e4 > a * cap * r.anchorGap) revert MidMovedTooFar(mid2, a, cap * r.anchorGap);
+        }
+        r.lastMid2 = uint64(mid2);
+        r.lastEpoch = uint48(epoch);
+        _ref = r;
+    }
+
+    /// @notice Pulls the vault's resting quotes once the agreement has ended. Anyone may call it: the funds go
+    ///         back to the vault's margin, which only the issuer can withdraw. While live there is no cancel at
+    ///         all; quotes leave the book only when filled or replaced by SLA-compliant ones, so a quote cannot be
+    ///         posted for the proof and pulled right after.
+    function cancel() external nonReentrant {
+        if (block.number < endBlock) revert NotEnded();
         uint40[] memory ids = _openOrders;
         delete _openOrders;
         KuruV1Adapter.cancel(_terms.market, ids);
@@ -180,6 +226,17 @@ contract InventoryVault is Initializable, ReentrancyGuard {
         operator = pendingOperator;
         pendingOperator = address(0);
         operatorProposer = address(0);
+    }
+
+    /// @notice Issuer tops up inventory, e.g. after one side was bought or sold out. Goes straight to Kuru margin.
+    function addInventory(uint256 baseAmount, uint256 quoteAmount) external onlyIssuer nonReentrant {
+        if (finalized || block.number >= endBlock) revert NotLive();
+        MarketScale memory s = _scale;
+        if (baseAmount > 0) IERC20(s.baseToken).safeTransferFrom(msg.sender, address(this), baseAmount);
+        if (quoteAmount > 0) IERC20(s.quoteToken).safeTransferFrom(msg.sender, address(this), quoteAmount);
+        KuruV1Adapter.depositToMargin(marginAccount, s.baseToken, baseAmount);
+        KuruV1Adapter.depositToMargin(marginAccount, s.quoteToken, quoteAmount);
+        emit InventoryAdded(msg.sender, baseAmount, quoteAmount);
     }
 
     /// @notice Inventory (incl. fills, which Kuru credits to this vault's margin) returns only to the issuer.
@@ -222,6 +279,11 @@ contract InventoryVault is Initializable, ReentrancyGuard {
 
     function marketScale() external view returns (MarketScale memory) {
         return _scale;
+    }
+
+    /// @notice The last proven mid and the drift anchor (see `_checkDrift`).
+    function priceRef() external view returns (PriceRef memory) {
+        return _ref;
     }
 
     function isLive() public view returns (bool) {

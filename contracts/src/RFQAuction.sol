@@ -40,6 +40,7 @@ contract RFQAuction is ReentrancyGuard {
     error ZeroRetainer();
     error NoBid();
     error IsWinner();
+    error BidChanged(uint256 retainerPerBlock);
 
     event RFQOpened(uint256 indexed id, address indexed issuer, address indexed market, uint64 deadline, string uri);
     event BidPlaced(uint256 indexed id, address indexed bidder, uint256 retainerPerBlock, address operator);
@@ -100,12 +101,18 @@ contract RFQAuction is ReentrancyGuard {
         emit BidWithdrawn(id, msg.sender);
     }
 
-    function award(uint256 id, address bidder) external nonReentrant returns (address agreement) {
+    /// @param expectedRetainerPerBlock the bid the issuer saw: a bidder who raises it before this lands loses the award
+    function award(uint256 id, address bidder, uint256 expectedRetainerPerBlock)
+        external
+        nonReentrant
+        returns (address agreement)
+    {
         RFQ storage r = _rfqs[id];
         if (msg.sender != r.issuer) revert NotIssuer();
         if (r.status != Status.Open) revert NotOpen();
         Bid storage b = bids[id][bidder];
         if (!b.active) revert NoBid();
+        if (b.retainerPerBlock != expectedRetainerPerBlock) revert BidChanged(b.retainerPerBlock);
 
         Terms memory t = r.terms;
         t.retainerPerBlock = b.retainerPerBlock;

@@ -78,7 +78,9 @@ contract DeployLocal is Script {
             noticeBlocks: 2_000,
             bondAmount: 5_000e6,
             slashAmount: 1_000e6,
-            pauseExcused: true
+            pauseExcused: true,
+            maxMidMoveBps: 100, // 1% per 10 s epoch
+            startDelayBlocks: 5
         });
         uint256 id = rfq.openRFQ(t, 10_000, "ipfs://quoral-demo/xaut0-usdc.json");
         vm.stopBroadcast();
@@ -93,9 +95,10 @@ contract DeployLocal is Script {
             vm.stopBroadcast();
         }
 
-        (best,) = rfq.bestBid(id);
+        (address bestBidder, uint256 bestRate) = rfq.bestBid(id);
+        best = bestBidder;
         vm.startBroadcast(K0);
-        agreement = rfq.award(id, best);
+        agreement = rfq.award(id, best, bestRate);
         vm.stopBroadcast();
         _write();
     }

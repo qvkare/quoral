@@ -106,7 +106,9 @@ contract AgreementFactory is Ownable2Step {
         if (t.uptimeWindowEpochs == 0) revert InvalidTerms("uptimeWindowEpochs");
         if (t.retainerPerBlock == 0) revert InvalidTerms("retainerPerBlock");
         if (t.slashAmount > t.bondAmount) revert InvalidTerms("slashAmount");
-        if (t.baseInventory == 0 && t.quoteInventory == 0) revert InvalidTerms("inventory");
+        // a two-sided SLA needs inventory on both sides for its first quote
+        if (t.baseInventory == 0 || t.quoteInventory == 0) revert InvalidTerms("inventory");
+        if (t.maxMidMoveBps > 1e4) revert InvalidTerms("maxMidMoveBps");
         s = KuruV1Adapter.scale(t.market);
     }
 
@@ -131,55 +133,58 @@ contract AgreementFactory is Ownable2Step {
         agreement = Clones.cloneDeterministic(vaultImpl, salt);
         address hb = Clones.cloneDeterministic(heartbeatImpl, salt);
         address ps = Clones.cloneDeterministic(paystreamImpl, salt);
-        uint64 start = uint64(block.number);
+        uint64 start = uint64(block.number) + t.startDelayBlocks;
 
         // Fund from the issuer (issuer approved this factory before awarding).
         if (t.baseInventory > 0) IERC20(s.baseToken).safeTransferFrom(issuer, agreement, t.baseInventory);
         if (t.quoteInventory > 0) IERC20(s.quoteToken).safeTransferFrom(issuer, agreement, t.quoteInventory);
         IERC20(s.quoteToken).safeTransferFrom(issuer, ps, retainerBudget(t));
 
-        Heartbeat(hb).initialize(
-            Heartbeat.InitParams({
-                vault: agreement,
-                paystream: ps,
-                bondVault: bondVault,
-                issuer: issuer,
-                startBlock: start,
-                epochBlocks: t.epochBlocks,
-                windowEpochs: t.uptimeWindowEpochs,
-                uptimeBps: t.uptimeBps,
-                slashAmount: t.slashAmount,
-                pauseExcused: t.pauseExcused
-            })
-        );
-        Paystream(ps).initialize(
-            Paystream.InitParams({
-                vault: agreement,
-                heartbeat: hb,
-                token: s.quoteToken,
-                issuer: issuer,
-                mm: mm,
-                treasury: treasury,
-                feeBps: feeBps,
-                retainerPerBlock: t.retainerPerBlock,
-                epochBlocks: t.epochBlocks,
-                startBlock: start
-            })
-        );
-        InventoryVault(agreement).initialize(
-            InventoryVault.InitParams({
-                terms: t,
-                issuer: issuer,
-                mm: mm,
-                operator: operator,
-                marginAccount: marginAccount,
-                heartbeat: hb,
-                paystream: ps,
-                bondVault: bondVault,
-                startBlock: start
-            }),
-            s
-        );
+        Heartbeat(hb)
+            .initialize(
+                Heartbeat.InitParams({
+                    vault: agreement,
+                    paystream: ps,
+                    bondVault: bondVault,
+                    issuer: issuer,
+                    startBlock: start,
+                    epochBlocks: t.epochBlocks,
+                    windowEpochs: t.uptimeWindowEpochs,
+                    uptimeBps: t.uptimeBps,
+                    slashAmount: t.slashAmount,
+                    pauseExcused: t.pauseExcused
+                })
+            );
+        Paystream(ps)
+            .initialize(
+                Paystream.InitParams({
+                    vault: agreement,
+                    heartbeat: hb,
+                    token: s.quoteToken,
+                    issuer: issuer,
+                    mm: mm,
+                    treasury: treasury,
+                    feeBps: feeBps,
+                    retainerPerBlock: t.retainerPerBlock,
+                    epochBlocks: t.epochBlocks,
+                    startBlock: start
+                })
+            );
+        InventoryVault(agreement)
+            .initialize(
+                InventoryVault.InitParams({
+                    terms: t,
+                    issuer: issuer,
+                    mm: mm,
+                    operator: operator,
+                    marginAccount: marginAccount,
+                    heartbeat: hb,
+                    paystream: ps,
+                    bondVault: bondVault,
+                    startBlock: start
+                }),
+                s
+            );
 
         IBondVault(bondVault).registerAgreement(agreement, hb);
         bytes32 th = termsHash(t);
@@ -187,7 +192,17 @@ contract AgreementFactory is Ownable2Step {
         agreements.push(agreement);
 
         emit AgreementCreated(
-            agreement, issuer, mm, hb, ps, operator, t.market, s.baseToken, s.quoteToken, th, start,
+            agreement,
+            issuer,
+            mm,
+            hb,
+            ps,
+            operator,
+            t.market,
+            s.baseToken,
+            s.quoteToken,
+            th,
+            start,
             start + t.durationBlocks
         );
     }

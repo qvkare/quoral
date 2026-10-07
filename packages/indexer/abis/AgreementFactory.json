@@ -184,6 +184,16 @@
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       },
@@ -429,6 +439,16 @@
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -582,6 +602,16 @@
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -699,6 +729,16 @@
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }

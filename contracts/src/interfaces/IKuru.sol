@@ -31,7 +31,11 @@ interface IKuruOrderBook {
         bool postOnly
     ) external;
 
+    /// @notice Reverts with `OrderAlreadyFilledOrCancelled` if any id was already filled.
     function batchCancelOrders(uint40[] calldata orderIds) external;
+
+    /// @notice Same, but skips filled ids instead of reverting.
+    function batchCancelOrdersNoRevert(uint40[] calldata orderIds) external;
 
     function bestBidAsk() external view returns (uint256, uint256);
 

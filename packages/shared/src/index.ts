@@ -11,6 +11,7 @@ export type Deployment = {
   registry: `0x${string}`;
   factory: `0x${string}`;
   rfq: `0x${string}`;
+  rfqId?: number;
   keeperReceiver?: `0x${string}`;
   // local demo only
   market?: `0x${string}`;
@@ -52,4 +53,6 @@ export type Terms = {
   bondAmount: bigint;
   slashAmount: bigint;
   pauseExcused: boolean;
+  maxMidMoveBps: number;
+  startDelayBlocks: number;
 };

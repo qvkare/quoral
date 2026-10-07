@@ -13,6 +13,24 @@
   },
   {
     "type": "function",
+    "name": "addInventory",
+    "inputs": [
+      {
+        "name": "baseAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "bondVault",
     "inputs": [],
     "outputs": [
@@ -193,6 +211,16 @@
                 "name": "pauseExcused",
                 "type": "bool",
                 "internalType": "bool"
+              },
+              {
+                "name": "maxMidMoveBps",
+                "type": "uint16",
+                "internalType": "uint16"
+              },
+              {
+                "name": "startDelayBlocks",
+                "type": "uint32",
+                "internalType": "uint32"
               }
             ]
           },
@@ -383,6 +411,19 @@
   },
   {
     "type": "function",
+    "name": "minOrderSize",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "mm",
     "inputs": [],
     "outputs": [
@@ -468,6 +509,46 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "priceRef",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct PriceRef",
+        "components": [
+          {
+            "name": "lastMid2",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "lastEpoch",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "anchorMid2",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "anchorEpoch1",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "anchorGap",
+            "type": "uint32",
+            "internalType": "uint32"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -611,6 +692,16 @@
             "name": "pauseExcused",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "maxMidMoveBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "startDelayBlocks",
+            "type": "uint32",
+            "internalType": "uint32"
           }
         ]
       }
@@ -691,6 +782,56 @@
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InventoryAdded",
+    "inputs": [
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "baseAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InventoryLimited",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "bidShort",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "askShort",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -880,6 +1021,27 @@
     "type": "error",
     "name": "LengthMismatch",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MidMovedTooFar",
+    "inputs": [
+      {
+        "name": "mid2",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "anchorMid2",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "allowedBps",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",

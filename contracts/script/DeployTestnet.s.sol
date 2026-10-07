@@ -7,21 +7,22 @@ import {BondVault} from "../src/BondVault.sol";
 import {DisclosureRegistry} from "../src/DisclosureRegistry.sol";
 import {AgreementFactory} from "../src/AgreementFactory.sol";
 import {RFQAuction} from "../src/RFQAuction.sol";
-import {InventoryVault} from "../src/InventoryVault.sol";
 import {CREKeeperReceiver} from "../src/keepers/CREKeeperReceiver.sol";
 import {Terms} from "../src/libraries/Types.sol";
 
-/// @notice Public demo on Monad testnet (10143).
+/// @notice Public demo on Monad testnet (10143), step 1 of 2.
 /// Kuru's testnet markets run Kuru v2 (AccountCore), while Quoral v1 targets the Kuru v1 OrderBook that is live on
-/// mainnet. So this script deploys a test order book with the Kuru v1 interface and test tokens, then the Quoral
-/// core, then opens an RFQ that three market makers bid on and awards the lowest bid.
+/// mainnet. So this script deploys a test order book with the Kuru v1 interface, set up like Kuru's mainnet
+/// XAUt0-USDC market (price precision 1e4, size precision 1e6, tick 100, minimum size 2000), then the Quoral
+/// core, and opens the RFQ. Step 2, `testnet:finish` in packages/bot, funds the bidders, places three
+/// bonded bids and awards the lowest, spacing sends for Monad's reserve-balance rule.
 ///
 /// env (contracts/.env, never committed):
-///   TESTNET_OPS_KEY        deployer, issuer, treasury, keeper-receiver owner
-///   TESTNET_MM_A/B/C_KEY   bidders
+///   TESTNET_OPS_KEY           deployer, issuer, treasury, keeper-receiver owner
 ///   TESTNET_OPERATOR_ADDRESS  quoting key used by every bid (the Cloudflare cron worker)
-///   EPOCH_BLOCKS (default 600 ≈ 3 min), DURATION_EPOCHS (default 14400 ≈ 30 days)
-///   FUND_MM (default 0.05 ether) gas money sent from OPS to each bidder
+///   BASE_TOKEN / QUOTE_TOKEN  reuse existing test tokens (optional; new ones otherwise)
+///   CRE_FORWARDER             default: Chainlink's MockKeystoneForwarder on Monad testnet (for `cre workflow simulate`)
+///   EPOCH_BLOCKS (default 1980 ≈ 10 min at 302 ms), DURATION_EPOCHS (default 4320 ≈ 30 days)
 contract DeployTestnet is Script {
     MockERC20 xaut;
     MockERC20 usdc;
@@ -32,24 +33,24 @@ contract DeployTestnet is Script {
     AgreementFactory factory;
     RFQAuction rfq;
     CREKeeperReceiver keeperRx;
-    address agreement;
-    address winner;
     uint256 rfqId;
 
     function run() external {
         uint256 ops = vm.envUint("TESTNET_OPS_KEY");
-        uint256[3] memory mms = [vm.envUint("TESTNET_MM_A_KEY"), vm.envUint("TESTNET_MM_B_KEY"), vm.envUint("TESTNET_MM_C_KEY")];
         address operator = vm.envAddress("TESTNET_OPERATOR_ADDRESS");
-        uint32 epochBlocks = uint32(vm.envOr("EPOCH_BLOCKS", uint256(600)));
-        uint64 durationEpochs = uint64(vm.envOr("DURATION_EPOCHS", uint256(14_400)));
-        uint256 fundMm = vm.envOr("FUND_MM", uint256(0.05 ether));
+        address forwarder = vm.envOr("CRE_FORWARDER", address(0xB9F79d863261869B234c481D1f9A7af84AeAd192));
+        uint32 epochBlocks = uint32(vm.envOr("EPOCH_BLOCKS", uint256(1980)));
+        uint64 durationEpochs = uint64(vm.envOr("DURATION_EPOCHS", uint256(4320)));
         address issuer = vm.addr(ops);
 
         vm.startBroadcast(ops);
-        xaut = new MockERC20("Test XAUt0", "XAUt0", 6);
-        usdc = new MockERC20("Test USDC", "USDC", 6);
+        address baseToken = vm.envOr("BASE_TOKEN", address(0));
+        address quoteToken = vm.envOr("QUOTE_TOKEN", address(0));
+        xaut = baseToken == address(0) ? new MockERC20("Test XAUt0", "XAUt0", 6) : MockERC20(baseToken);
+        usdc = quoteToken == address(0) ? new MockERC20("Test USDC", "USDC", 6) : MockERC20(quoteToken);
         margin = new MockMarginAccount();
-        book = new MockOrderBook(margin, address(xaut), address(usdc), 100, 1e4);
+        book = new MockOrderBook(margin, address(xaut), address(usdc), 1e4, 1e6);
+        book.setLimits(100, 2000);
         margin.setMarket(address(book));
 
         bonds = new BondVault(address(usdc), issuer);
@@ -60,49 +61,32 @@ contract DeployTestnet is Script {
         bonds.setWiring(address(rfq), address(factory));
         factory.setRFQ(address(rfq));
         factory.setMarket(address(book), true);
-        keeperRx = new CREKeeperReceiver(issuer, issuer);
+        keeperRx = new CREKeeperReceiver(issuer, forwarder);
 
-        xaut.mint(issuer, 1_000e6);
-        usdc.mint(issuer, 10_000_000e6);
+        if (xaut.balanceOf(issuer) < 100e6) xaut.mint(issuer, 1_000e6);
+        if (usdc.balanceOf(issuer) < 1_000_000e6) usdc.mint(issuer, 10_000_000e6);
         xaut.approve(address(factory), type(uint256).max);
         usdc.approve(address(factory), type(uint256).max);
-        for (uint256 i; i < 3; ++i) {
-            address m = vm.addr(mms[i]);
-            usdc.mint(m, 100_000e6);
-            if (m.balance < fundMm) payable(m).transfer(fundMm - m.balance);
-        }
 
         Terms memory t = Terms({
             market: address(book),
-            baseInventory: 10e6, // 10 XAUt0
+            baseInventory: 10e6, // 10 XAUt0 ≈ $41k
             quoteInventory: 50_000e6,
             maxSpreadBps: 50,
             minDepthQuote: 10_000e6,
             epochBlocks: epochBlocks,
-            uptimeWindowEpochs: 20, // one hour of 3-minute bars
-            uptimeBps: 9000, // two misses allowed per window: a public demo has to survive the odd late cron tick
-            retainerPerBlock: 20_000, // cap
+            uptimeWindowEpochs: 12, // two hours of 10-minute bars
+            uptimeBps: 8500, // one miss allowed per window
+            retainerPerBlock: 20_000, // cap: 0.02 USDC per block
             durationBlocks: uint64(epochBlocks) * durationEpochs,
             noticeBlocks: 2_000,
             bondAmount: 10_000e6,
             slashAmount: 500e6,
-            pauseExcused: true
+            pauseExcused: true,
+            maxMidMoveBps: 150, // the mid may move at most 1.5% per epoch
+            startDelayBlocks: 600 // ≈ 3 minutes for the quoter to pick the agreement up
         });
-        rfqId = rfq.openRFQ(t, 2_000, "ipfs://quoral-testnet/xaut0-usdc.json");
-        vm.stopBroadcast();
-
-        uint256[3] memory prices = [uint256(12_000), 9_500, 11_000];
-        for (uint256 i; i < 3; ++i) {
-            vm.startBroadcast(mms[i]);
-            usdc.approve(address(bonds), type(uint256).max);
-            bonds.deposit(20_000e6);
-            rfq.bid(rfqId, prices[i], operator);
-            vm.stopBroadcast();
-        }
-
-        (winner,) = rfq.bestBid(rfqId);
-        vm.startBroadcast(ops);
-        agreement = rfq.award(rfqId, winner);
+        rfqId = rfq.openRFQ(t, 20_000, "ipfs://quoral-testnet/xaut0-usdc-v2.json"); // ≈ 100 minutes of bidding
         vm.stopBroadcast();
 
         _write();
@@ -112,6 +96,7 @@ contract DeployTestnet is Script {
         string memory o = "testnet";
         vm.serializeUint(o, "chainId", block.chainid);
         vm.serializeUint(o, "startBlock", block.number);
+        vm.serializeUint(o, "rfqId", rfqId);
         vm.serializeAddress(o, "base", address(xaut));
         vm.serializeAddress(o, "quote", address(usdc));
         vm.serializeAddress(o, "marginAccount", address(margin));
@@ -120,16 +105,12 @@ contract DeployTestnet is Script {
         vm.serializeAddress(o, "registry", address(registry));
         vm.serializeAddress(o, "factory", address(factory));
         vm.serializeAddress(o, "keeperReceiver", address(keeperRx));
-        vm.serializeAddress(o, "rfq", address(rfq));
-        vm.serializeAddress(o, "agreement", agreement);
-        vm.serializeAddress(o, "heartbeat", InventoryVault(agreement).heartbeat());
-        string memory json = vm.serializeAddress(o, "paystream", InventoryVault(agreement).paystream());
+        string memory json = vm.serializeAddress(o, "rfq", address(rfq));
         vm.writeJson(json, string.concat("./deployments/", vm.toString(block.chainid), ".json"));
 
         console2.log("market    ", address(book));
         console2.log("factory   ", address(factory));
         console2.log("rfq       ", address(rfq));
-        console2.log("agreement ", agreement);
-        console2.log("winner    ", winner);
+        console2.log("rfq id    ", rfqId);
     }
 }

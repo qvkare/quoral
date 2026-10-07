@@ -96,20 +96,26 @@ contract QuoralTest is Test {
             noticeBlocks: 500,
             bondAmount: 1_000e6,
             slashAmount: 200e6,
-            pauseExcused: true
+            pauseExcused: true,
+            maxMidMoveBps: 0,
+            startDelayBlocks: 0
         });
     }
 
     function _deal() internal returns (uint256 id) {
+        return _deal(_terms());
+    }
+
+    function _deal(Terms memory t) internal returns (uint256 id) {
         vm.startPrank(issuer);
-        id = rfq.openRFQ(_terms(), 50, "ipfs://terms");
+        id = rfq.openRFQ(t, 50, "ipfs://terms");
         xaut.approve(address(factory), type(uint256).max);
         usdc.approve(address(factory), type(uint256).max);
         vm.stopPrank();
         vm.prank(mm);
         rfq.bid(id, RATE, op);
         vm.prank(issuer);
-        address a = rfq.award(id, mm);
+        address a = rfq.award(id, mm, RATE);
         vault = InventoryVault(a);
         hb = Heartbeat(vault.heartbeat());
         ps = Paystream(vault.paystream());
@@ -267,8 +273,9 @@ contract QuoralTest is Test {
         (,,,, bool active0) = book.orders(first[0]);
         (,,,, bool active1) = book.orders(first[1]);
         assertFalse(active0 || active1);
-        // operator can pull everything at once
-        vm.prank(op);
+        // once the agreement has ended anyone can pull the quotes; the funds stay in the vault
+        vm.roll(vault.endBlock());
+        vm.prank(keeper);
         vault.cancel();
         assertEq(vault.openOrders().length, 0);
         (uint256 b, uint256 q) = vault.marginBalances();
@@ -447,7 +454,7 @@ contract QuoralTest is Test {
         assertEq(r, 1_500);
 
         vm.prank(issuer);
-        address a = rfq.award(id, best);
+        address a = rfq.award(id, best, 1_500);
         assertEq(Paystream(InventoryVault(a).paystream()).retainerPerBlock(), 1_500);
         assertEq(bonds.locked(mm), 0);
 
@@ -460,7 +467,7 @@ contract QuoralTest is Test {
 
         vm.prank(issuer);
         vm.expectRevert(RFQAuction.NotOpen.selector);
-        rfq.award(id, mm3);
+        rfq.award(id, mm3, 2_500);
     }
 
     function test_rfq_bid_requires_bond_and_window() public {
@@ -539,6 +546,213 @@ contract QuoralTest is Test {
         returns (Proof memory)
     {
         MarketScale memory sc = MarketScale(100, 1e4, 6, 6, address(xaut), address(usdc));
-        return SLALib.evaluate(sc, b, bs, a, as_, 50);
+        (Proof memory p,) = SLALib.evaluate(sc, b, bs, a, as_, 50, 0);
+        return p;
+    }
+
+    // ------------------------------------------------------------------ cancel after fills (Kuru semantics)
+
+    function test_cancel_after_a_fill_frees_the_rest() public {
+        _deal();
+        _quote();
+        uint40[] memory ids = vault.openOrders(); // [bid, ask]
+        // a taker buys exactly the vault's ask: 2.58 oz at 3905.00
+        usdc.mint(taker, 20_000e6);
+        vm.startPrank(taker);
+        usdc.approve(address(book), type(uint256).max);
+        book.placeAndExecuteMarketBuy(uint96((uint256(ASK) * SIZE) / 1e4), 0, false, true);
+        vm.stopPrank();
+        vm.roll(vault.endBlock());
+        // Kuru's reverting batch cancel would strand the remaining bid on the book...
+        vm.prank(address(vault));
+        vm.expectRevert(MockOrderBook.OrderAlreadyFilledOrCancelled.selector);
+        book.batchCancelOrders(ids);
+        // ...the vault uses the no-revert variant, so the bid comes back and the issuer gets everything
+        vm.prank(keeper);
+        vault.cancel();
+        vm.prank(issuer);
+        vault.withdrawInventory();
+        uint256 soldBase = (uint256(SIZE) * 1e6) / 1e4;
+        uint256 proceeds = (uint256(ASK) * SIZE * 1e6) / (100 * 1e4);
+        assertEq(xaut.balanceOf(issuer), 100e6 - soldBase);
+        assertEq(usdc.balanceOf(issuer), 1_000_000e6 - RATE * 100 * EPOCH + proceeds);
+    }
+
+    function test_no_cancel_while_live() public {
+        _deal();
+        _quote();
+        vm.prank(op);
+        vm.expectRevert(InventoryVault.NotEnded.selector);
+        vault.cancel();
+        vm.prank(issuer);
+        vm.expectRevert(InventoryVault.NotEnded.selector);
+        vault.cancel();
+        assertEq(vault.openOrders().length, 2);
+    }
+
+    function test_market_buy_partially_fills_the_vault_ask() public {
+        _deal();
+        _quote();
+        usdc.mint(taker, 5_000e6);
+        vm.startPrank(taker);
+        usdc.approve(address(book), type(uint256).max);
+        // spend 3,905 USDC (price-precision units) → 1 oz at 3905.00
+        uint256 got = book.placeAndExecuteMarketBuy(390_500, 0, false, true);
+        vm.stopPrank();
+        assertEq(got, 1e6);
+        assertEq(xaut.balanceOf(taker), 1e6);
+        (, uint256 q) = vault.marginBalances();
+        assertEq(q, 50_000e6 - (uint256(BID) * SIZE * 1e6) / (100 * 1e4) + 3_905e6);
+        // the partly filled ask is replaced by the next requote without trouble
+        _nextEpoch();
+        _quote();
+        assertEq(uint8(hb.status(1)), uint8(EpochStatus.Quoted));
+    }
+
+    // ------------------------------------------------------------------ drift cap
+
+    function _capped(uint16 bps) internal view returns (Terms memory t) {
+        t = _terms();
+        t.maxMidMoveBps = bps;
+    }
+
+    function test_mid_drift_cap_per_epoch() public {
+        _deal(_capped(100)); // 1% per epoch
+        _quote(); // mid 3897.50
+        _nextEpoch();
+        // +2%: rejected
+        vm.prank(op);
+        vm.expectRevert();
+        vault.requote(_arr32(397_500), _arr96(SIZE), _arr32(399_000), _arr96(SIZE));
+        // +0.9%: fine
+        _quote(392_500, 394_000, SIZE, SIZE);
+        // a second requote in the same epoch is measured against the same anchor, so no walking: +1.8% total
+        vm.prank(op);
+        vm.expectRevert();
+        vault.requote(_arr32(396_000), _arr96(SIZE), _arr32(397_500), _arr96(SIZE));
+    }
+
+    function test_mid_drift_cap_scales_with_missed_epochs() public {
+        _deal(_capped(100));
+        _quote(); // epoch 0, mid 3897.50
+        vm.roll(block.number + 4 * EPOCH); // epoch 4: four epochs since the last proof → 4% allowed
+        _quote(403_000, 404_500, SIZE, SIZE); // +3.6%
+        assertEq(vault.priceRef().anchorGap, 4);
+    }
+
+    // ------------------------------------------------------------------ inventory shortfall
+
+    function _thinBase() internal view returns (Terms memory t) {
+        t = _terms();
+        t.baseInventory = 2e6; // 2 oz ≈ $7.8k, below the $10k depth term
+    }
+
+    function test_short_side_posts_everything_in_band() public {
+        _deal(_thinBase());
+        vm.expectEmit(address(vault));
+        emit InventoryVault.InventoryLimited(0, false, true);
+        _quote(BID, ASK, SIZE, 20_000); // all 2 oz offered inside the band
+        (,,,,, uint128 askDepth) = hb.proofs(0);
+        assertLt(askDepth, 10_000e6);
+    }
+
+    function test_short_side_must_post_all_of_it() public {
+        _deal(_thinBase());
+        // 1.5 oz offered, 0.5 oz held back: not short, so the depth term applies
+        vm.prank(op);
+        vm.expectRevert();
+        vault.requote(_arr32(BID), _arr96(SIZE), _arr32(ASK), _arr96(15_000));
+        // all of it offered, but half far outside the band: still too thin
+        uint32[] memory asks = new uint32[](2);
+        uint96[] memory asz = new uint96[](2);
+        (asks[0], asks[1]) = (ASK, 450_000);
+        (asz[0], asz[1]) = (10_000, 10_000);
+        vm.prank(op);
+        vm.expectRevert();
+        vault.requote(_arr32(BID), _arr96(SIZE), asks, asz);
+    }
+
+    function test_empty_side_once_inventory_is_gone() public {
+        _deal(_thinBase());
+        _quote(BID, ASK, SIZE, 20_000);
+        book.fill(vault.openOrders()[1], taker); // all base sold
+        _nextEpoch();
+        uint32[] memory none32 = new uint32[](0);
+        uint96[] memory none96 = new uint96[](0);
+        vm.prank(op);
+        uint256 e = vault.requote(_arr32(BID), _arr96(SIZE), none32, none96);
+        assertEq(uint8(hb.status(e)), uint8(EpochStatus.Quoted));
+        (uint32 bb, uint32 ba, uint16 spread,,,) = hb.proofs(e);
+        assertEq(bb, BID);
+        assertEq(ba, 0);
+        assertEq(spread, 38); // 2 x distance from the last proven mid
+        // a lone bid far below the mid breaks the spread term
+        _nextEpoch();
+        vm.prank(op);
+        vm.expectRevert(abi.encodeWithSelector(SLALib.SpreadTooWide.selector, 76, 50));
+        vault.requote(_arr32(388_250), _arr96(SIZE), none32, none96);
+    }
+
+    function test_first_quote_must_be_two_sided() public {
+        _deal();
+        uint32[] memory none32 = new uint32[](0);
+        uint96[] memory none96 = new uint96[](0);
+        vm.prank(op);
+        vm.expectRevert(SLALib.NoTwoSidedQuote.selector);
+        vault.requote(_arr32(BID), _arr96(SIZE), none32, none96);
+    }
+
+    function test_issuer_tops_up_inventory() public {
+        _deal();
+        vm.startPrank(issuer);
+        xaut.approve(address(vault), type(uint256).max);
+        usdc.approve(address(vault), type(uint256).max);
+        vault.addInventory(5e6, 1_000e6);
+        vm.stopPrank();
+        (uint256 b, uint256 q) = vault.marginBalances();
+        assertEq(b, 15e6);
+        assertEq(q, 51_000e6);
+        vm.prank(mm);
+        vm.expectRevert(InventoryVault.NotIssuer.selector);
+        vault.addInventory(1, 0);
+    }
+
+    // ------------------------------------------------------------------ RFQ award slippage, start delay
+
+    function test_award_reverts_if_bid_changed() public {
+        vm.startPrank(issuer);
+        uint256 id = rfq.openRFQ(_terms(), 50, "");
+        xaut.approve(address(factory), type(uint256).max);
+        usdc.approve(address(factory), type(uint256).max);
+        vm.stopPrank();
+        vm.prank(mm);
+        rfq.bid(id, 1_000, op);
+        vm.prank(mm);
+        rfq.bid(id, 5_000, op); // raised to the cap right before the award
+        vm.prank(issuer);
+        vm.expectRevert(abi.encodeWithSelector(RFQAuction.BidChanged.selector, 5_000));
+        rfq.award(id, mm, 1_000);
+    }
+
+    function test_start_delay_gives_setup_time() public {
+        Terms memory t = _terms();
+        t.startDelayBlocks = 50;
+        uint256 awardBlock = block.number;
+        _deal(t);
+        assertEq(vault.startBlock(), awardBlock + 50);
+        vm.prank(op);
+        vm.expectRevert(InventoryVault.NotLive.selector);
+        vault.requote(_arr32(BID), _arr96(SIZE), _arr32(ASK), _arr96(SIZE));
+        vm.roll(awardBlock + 50);
+        assertEq(_quote(), 0);
+        assertEq(vault.endBlock(), awardBlock + 50 + 100 * EPOCH);
+    }
+
+    function test_one_sided_inventory_terms_rejected() public {
+        Terms memory t = _terms();
+        t.quoteInventory = 0;
+        vm.prank(issuer);
+        vm.expectRevert(abi.encodeWithSelector(AgreementFactory.InvalidTerms.selector, "inventory"));
+        rfq.openRFQ(t, 10, "");
     }
 }
