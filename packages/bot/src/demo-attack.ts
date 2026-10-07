@@ -10,7 +10,7 @@
  */
 import { BaseError, ContractFunctionRevertedError, createWalletClient, http, parseAbi, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { inventoryVaultAbi, iKuruOrderBookAbi, parseBestBidAsk } from "@quoral/shared";
+import { inventoryVaultAbi, heartbeatAbi, iKuruOrderBookAbi, parseBestBidAsk } from "@quoral/shared";
 import { publicClient, agreementAddress, log, chain, chainId, rpcUrl, deployment } from "./config";
 import { operatorSender } from "./signer";
 
@@ -58,7 +58,14 @@ async function main() {
   // Post-only: the vault replaces its own quotes first, so the thing to cross must belong to someone else.
   // On mainnet the book has other makers; on the local mock we rest a third-party ask for the test.
   const third = chainId === 31337 ? await restThirdPartyAsk(terms.market, px(mid * 1.003), BigInt(s.sizePrecision) / 10n) : undefined;
-  const otherAsk = third ? third.price / pp : ask;
+  // Kuru's bestBidAsk includes our own quotes; crossing those proves nothing, because the vault cancels them first
+  const hb = (await publicClient.readContract({ address: vault, abi: inventoryVaultAbi, functionName: "heartbeat" })) as Address;
+  const last = ref0.lastMid2 > 0n
+    ? ((await publicClient.readContract({ address: hb, abi: heartbeatAbi, functionName: "proofs", args: [BigInt(ref0.lastEpoch)] })) as readonly [number, number, ...unknown[]])
+    : undefined;
+  const ownAsk = ask !== undefined && last !== undefined && Math.round(ask * pp) === Number(last[1]);
+  const otherAsk = third ? third.price / pp : ownAsk ? undefined : ask;
+  if (!otherAsk) log("attack", "· post-only: no other maker rests on this book, so there is nothing to cross (the mainnet fork test shows Kuru rejecting a crossing quote)");
   if (otherAsk) {
     await attempt(`bid 5 bps through someone else's ask at ${otherAsk.toFixed(2)} (post-only)`, op, vault, "requote", [
       [px(otherAsk * 1.0005)], [size], [px(otherAsk * 1.004)], [size],

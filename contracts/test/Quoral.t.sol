@@ -632,6 +632,16 @@ contract QuoralTest is Test {
         vault.requote(_arr32(396_000), _arr96(SIZE), _arr32(397_500), _arr96(SIZE));
     }
 
+    function test_mid_drift_cap_applies_in_the_first_epoch() public {
+        _deal(_capped(100));
+        _quote(); // first proof ever, epoch 0: sets the reference freely
+        // a second requote in the same epoch may not walk away from it
+        vm.prank(op);
+        vm.expectRevert();
+        vault.requote(_arr32(397_500), _arr96(SIZE), _arr32(399_000), _arr96(SIZE));
+        _quote(392_500, 394_000, SIZE, SIZE); // +0.9% is fine
+    }
+
     function test_mid_drift_cap_scales_with_missed_epochs() public {
         _deal(_capped(100));
         _quote(); // epoch 0, mid 3897.50

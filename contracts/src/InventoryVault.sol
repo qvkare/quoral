@@ -172,6 +172,10 @@ contract InventoryVault is Initializable, ReentrancyGuard {
             r.anchorMid2 = r.lastMid2;
             r.anchorGap = r.lastMid2 == 0 ? 0 : uint32(epoch - r.lastEpoch);
             r.anchorEpoch1 = uint48(epoch + 1);
+        } else if (r.anchorMid2 == 0 && r.lastMid2 != 0) {
+            // the epoch of the very first proof: later requotes in it are measured from that proof
+            r.anchorMid2 = r.lastMid2;
+            r.anchorGap = 1;
         }
         uint256 cap = _terms.maxMidMoveBps;
         if (cap > 0 && r.anchorMid2 > 0) {
