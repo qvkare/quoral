@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePoll } from "@/lib/hooks";
 import { listAgreements, loadAgreement, type AgreementView } from "@/lib/agreement";
-import { fmt, short, blocksToDuration, BLOCK_MS } from "@/lib/chain";
+import { fmt, short, blocksToDuration, BLOCK_MS, VENUE } from "@/lib/chain";
 import { Score } from "./Score";
 import { Skeleton } from "./ui";
 
@@ -60,7 +60,7 @@ export function LiveScore() {
     <div>
       <div className="score-head">
         <span>
-          <b>{a.base.symbol} / {a.quote.symbol}</b> <span className="muted">on Kuru, agreement</span>{" "}
+          <b>{a.base.symbol} / {a.quote.symbol}</b> <span className="muted">on {VENUE.name}, agreement</span>{" "}
           <Link href={`/${a.vault}`} className="mono">{short(a.vault)}</Link>
         </span>
         <span className="row" style={{ gap: 22 }}>

@@ -8,6 +8,7 @@ export const monad = defineChain({
   nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
   rpcUrls: { default: { http: ["https://rpc.monad.xyz"] } },
   blockExplorers: { default: { name: "MonadVision", url: "https://monadvision.com" } },
+  contracts: { multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" } },
 });
 
 export const monadTestnet = defineChain({
@@ -16,6 +17,7 @@ export const monadTestnet = defineChain({
   nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
   rpcUrls: { default: { http: ["https://testnet-rpc.monad.xyz"] } },
   blockExplorers: { default: { name: "MonadVision", url: "https://testnet.monadvision.com" } },
+  contracts: { multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" } },
   testnet: true,
 });
 

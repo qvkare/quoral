@@ -297,3 +297,6 @@ table.perm tr.critical td { background: var(--wash); }
   table.perm th, table.perm td { padding: 10px 4px; font-size: 12.5px; white-space: normal; }
   table.perm td:first-child, table.perm th:first-child { padding-left: 0; width: 34%; }
 }
+
+/* network note: plain text under the header, no colour, no icon */
+.netnote { border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--graphite); padding: 9px 0; }

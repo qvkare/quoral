@@ -4,9 +4,12 @@ out/
 cache/
 contracts/out/
 contracts/cache/
-contracts/broadcast/*/31337/
+contracts/broadcast/
+.vercel/
+.wrangler/
 .env
 .env.local
 generated/
 *.log
 .DS_Store
+*.tsbuildinfo

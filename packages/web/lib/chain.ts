@@ -7,8 +7,25 @@ export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || chain.rpcUrls.default.
 export const ENVIO_URL = process.env.NEXT_PUBLIC_ENVIO_URL || "";
 export const BLOCK_MS = blockTimeMs(CHAIN_ID);
 
-// batch: the score reads one proof per bar; JSON-RPC batching keeps that to a single HTTP request per poll.
-export const publicClient = createPublicClient({ chain, transport: http(RPC_URL, { batch: { wait: 16 } }) });
+// The score reads one proof per bar. On Monad, Multicall3 folds every read of a poll into one eth_call;
+// the local anvil chain has no Multicall3, so there JSON-RPC batching does the same job.
+const hasMulticall = Boolean((chain as { contracts?: { multicall3?: unknown } }).contracts?.multicall3);
+export const publicClient = createPublicClient({
+  chain,
+  batch: hasMulticall ? { multicall: { wait: 16 } } : undefined,
+  transport: http(RPC_URL, { batch: hasMulticall ? false : { wait: 16 } }),
+});
+
+/** Where the agreement quotes. Kuru's testnet runs v2, so the testnet demo uses a book with the Kuru v1 interface. */
+export const VENUE =
+  CHAIN_ID === 143
+    ? { name: "Kuru", note: "" }
+    : CHAIN_ID === 10143
+      ? {
+          name: "a Kuru v1-compatible test book",
+          note: "Monad testnet. Kuru's own testnet runs its v2 contracts, so this demo quotes on a test order book with the Kuru v1 interface used on mainnet. Every token here is a test token.",
+        }
+      : { name: "a local test book", note: "Local development chain with test tokens." };
 
 export function dep() {
   return getDeployment(CHAIN_ID);

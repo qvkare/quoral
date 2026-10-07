@@ -6,7 +6,7 @@ import { decodeEventLog, type Address } from "viem";
 import { heartbeatAbi, paystreamAbi, inventoryVaultAbi } from "@quoral/shared";
 import { usePoll } from "@/lib/hooks";
 import { loadAgreement, resolveAgreement, type AgreementView } from "@/lib/agreement";
-import { publicClient, fmt, short, blocksToDuration, isAddress, explorerAddr, explorerTx, BLOCK_MS, ENVIO_URL } from "@/lib/chain";
+import { publicClient, fmt, short, blocksToDuration, isAddress, explorerAddr, explorerTx, BLOCK_MS, ENVIO_URL, VENUE } from "@/lib/chain";
 import { Ledger, StatusPill, Skeleton } from "@/components/ui";
 import { Score } from "@/components/Score";
 
@@ -84,7 +84,7 @@ function Terms({ vault }: { vault: Address }) {
               {a.base.symbol} / {a.quote.symbol} market making
             </h1>
             <p className="muted" style={{ margin: 0 }}>
-              Agreement <span className="addr">{short(a.vault)}</span> on Kuru market <span className="addr">{short(t.market)}</span>.{" "}
+              Agreement <span className="addr">{short(a.vault)}</span> on {VENUE.name} <span className="addr">{short(t.market)}</span>.{" "}
               {a.live ? `${blocksToDuration(a.endBlock - a.blockNumber)} remaining.` : "The agreement has ended."}
             </p>
           </div>
@@ -210,7 +210,21 @@ const addr = (x: string) =>
     short(x)
   );
 
-type Row = { block: bigint; tx: string; text: string; pencil?: boolean };
+type Row = { block: bigint; tx?: string; when?: string; text: string; pencil?: boolean };
+
+/** Public Monad RPCs cap eth_getLogs at 100 blocks; then the log is rebuilt from contract state instead. */
+function stateRows(a: AgreementView): Row[] {
+  const qd = a.quote.decimals;
+  const Q = a.quote.symbol;
+  const perBar = a.pay.retainerPerBlock * BigInt(a.terms.epochBlocks);
+  const rows: Row[] = a.bars
+    .filter((b) => b.status === 3)
+    .map((b) => ({ block: b.epoch, when: `epoch ${b.epoch}`, text: `Missed epoch settled. ${fmt(perBar, qd, 4)} ${Q} returned to the issuer.`, pencil: true }));
+  if (a.bond.slashed > 0n) rows.push({ block: -1n, when: "to date", text: `Bond slashed ${fmt(a.bond.slashed, qd)} ${Q} in total for uptime breaches.`, pencil: true });
+  if (a.noticeGiven) rows.push({ block: -2n, when: "notice", text: `Notice given. The agreement ends at block ${a.endBlock}.` });
+  if (a.finalized) rows.push({ block: -3n, when: "final", text: "Agreement finalized." });
+  return rows.sort((x, y) => Number(y.block - x.block));
+}
 
 function Activity({ a }: { a: AgreementView }) {
   const { data } = usePoll(
@@ -219,20 +233,25 @@ function Activity({ a }: { a: AgreementView }) {
       const fromBlock = latest > 20_000n ? latest - 20_000n : 0n;
       const qd = a.quote.decimals;
       const Q = a.quote.symbol;
-      const [hb, ps, vlt] = await Promise.all([
-        publicClient.getLogs({ address: a.heartbeat, fromBlock, toBlock: latest }),
-        publicClient.getLogs({ address: a.paystream, fromBlock, toBlock: latest }),
-        publicClient.getLogs({ address: a.vault, fromBlock, toBlock: latest }),
-      ]);
+      let hb, ps, vlt;
+      try {
+        [hb, ps, vlt] = await Promise.all([
+          publicClient.getLogs({ address: a.heartbeat, fromBlock, toBlock: latest }),
+          publicClient.getLogs({ address: a.paystream, fromBlock, toBlock: latest }),
+          publicClient.getLogs({ address: a.vault, fromBlock, toBlock: latest }),
+        ]);
+      } catch {
+        return stateRows(a);
+      }
       const rows: Row[] = [];
-      const dec = (abi: readonly unknown[], l: (typeof hb)[number]) => {
+      const dec = (abi: readonly unknown[], l: (typeof vlt)[number]) => {
         try {
           return decodeEventLog({ abi: abi as never, data: l.data, topics: l.topics }) as unknown as { eventName: string; args: Record<string, bigint | string> };
         } catch {
           return undefined;
         }
       };
-      const push = (l: (typeof hb)[number], text: string, pencil?: boolean) => rows.push({ block: l.blockNumber!, tx: l.transactionHash!, text, pencil });
+      const push = (l: (typeof vlt)[number], text: string, pencil?: boolean) => rows.push({ block: l.blockNumber!, tx: l.transactionHash!, text, pencil });
       for (const l of hb) {
         const e = dec(heartbeatAbi, l);
         if (e?.eventName === "UptimeBreached") push(l, `Uptime fell below target in window ${e.args.window} (${e.args.misses} misses, ${e.args.allowedMisses} allowed). Bond slashed ${fmt(e.args.slashed as bigint, qd)} ${Q}.`, true);
@@ -260,7 +279,7 @@ function Activity({ a }: { a: AgreementView }) {
     <section>
       <div className="row between" style={{ alignItems: "baseline" }}>
         <h2>Enforcement log</h2>
-        <span className="muted small">{ENVIO_URL ? "Envio HyperIndex" : "Read from RPC logs"}, last 20,000 blocks</span>
+        <span className="muted small">{ENVIO_URL ? "Envio HyperIndex" : "Read from the chain"}</span>
       </div>
       {!data?.length ? (
         <p className="muted">No clawbacks, slashes or notices yet.</p>
@@ -268,14 +287,16 @@ function Activity({ a }: { a: AgreementView }) {
         <div className="tbl-wrap">
           <table>
             <thead>
-              <tr><th>Block</th><th>Event</th><th className="num">Transaction</th></tr>
+              <tr><th>When</th><th>Event</th><th className="num">Transaction</th></tr>
             </thead>
             <tbody>
               {data.map((r, i) => (
                 <tr key={i}>
-                  <td className="muted" style={{ width: 110 }}>{r.block.toString()}</td>
+                  <td className="muted" style={{ width: 120 }}>{r.when ?? `block ${r.block}`}</td>
                   <td style={{ color: r.pencil ? "var(--pencil)" : undefined }}>{r.text}</td>
-                  <td className="num mono">{explorerTx(r.tx) ? <a href={explorerTx(r.tx)} target="_blank" rel="noreferrer">{r.tx.slice(0, 10)}</a> : r.tx.slice(0, 10)}</td>
+                  <td className="num mono">
+                    {!r.tx ? <span className="faint">n/a</span> : explorerTx(r.tx) ? <a href={explorerTx(r.tx)} target="_blank" rel="noreferrer">{r.tx.slice(0, 10)}</a> : r.tx.slice(0, 10)}
+                  </td>
                 </tr>
               ))}
             </tbody>

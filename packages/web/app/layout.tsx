@@ -4,6 +4,7 @@ import "./globals.css";
 import { WalletProvider } from "@/lib/wallet";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
+import { VENUE } from "@/lib/chain";
 
 // Self-hosted variable fonts (SIL OFL), see DESIGN.md: Hanken Grotesk for UI, Newsreader for markings.
 const sans = localFont({
@@ -51,6 +52,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <WalletProvider>
           <a href="#content" className="sr-only">Skip to content</a>
           <Nav />
+          {VENUE.note && (
+            <div className="netnote">
+              <div className="wrap">{VENUE.note}</div>
+            </div>
+          )}
           <div id="content" style={{ flex: 1, display: "flex", flexDirection: "column" }}>{children}</div>
           <Footer />
         </WalletProvider>

@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BaseError, ContractFunctionRevertedError } from "viem";
+import { CHAIN_ID } from "./chain";
+
+/** Public RPCs are rate limited and epochs last minutes, so poll four times less often off the local chain. */
+const scalePoll = (ms: number) => (CHAIN_ID === 31337 ? ms : Math.max(ms * 4, 8000));
 
 /** Polls an async loader; keeps the last good value on transient errors. */
 export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []) {
@@ -23,7 +27,7 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
       if (alive) await refresh();
     };
     run();
-    const id = setInterval(run, ms);
+    const id = setInterval(run, scalePoll(ms));
     return () => {
       alive = false;
       clearInterval(id);

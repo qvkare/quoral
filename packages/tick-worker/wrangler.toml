@@ -1,0 +1,17 @@
+# Quoral house quoter + keeper on Monad testnet. One tick per minute; at most one signed tx per tick.
+# Secret (never in this file): OPERATOR_KEY, set with `wrangler secret put OPERATOR_KEY`.
+name = "quoral-tick"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+CHAIN_ID = "10143"
+RPC_URL = "https://testnet-rpc.monad.xyz"
+VAULT = "0x0000000000000000000000000000000000000000" # set after `forge script DeployTestnet`
+SETTLE_EVERY = "10"
+BLOCK_MS = "306"
