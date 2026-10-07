@@ -1,7 +1,7 @@
 /**
- * Finishes the Monad testnet demo after `forge script DeployTestnet` deployed the contracts: funds the bidders,
- * opens the RFQ, places three bonded bids and awards the lowest. Idempotent: it reads chain state and only does
- * what is missing, so it can be rerun safely.
+ * Finishes the Monad testnet demo after `forge script DeployTestnet` deployed the contracts and opened the RFQ:
+ * funds the bidders, places three bonded bids and awards the lowest. Idempotent: it reads chain state and only
+ * does what is missing, so it can be rerun safely.
  *
  * Why not forge: Monad keeps a 10 MON reserve balance per account with a 3-block window. An account below 10 MON
  * may only send a transaction that dips under the reserve when it sent nothing in the previous 3 blocks, so a
@@ -30,8 +30,6 @@ const ops = privateKeyToAccount(env.TESTNET_OPS_KEY as Hex);
 const mms = [env.TESTNET_MM_A_KEY, env.TESTNET_MM_B_KEY, env.TESTNET_MM_C_KEY].map((k) => privateKeyToAccount(k as Hex));
 const operator = env.TESTNET_OPERATOR_ADDRESS as Address;
 const BIDS = [12_000n, 9_500n, 11_000n]; // retainer per block, raw USDC units
-const EPOCH_BLOCKS = 600;
-const DURATION_EPOCHS = 14_400n;
 
 const lastSend = new Map<Address, bigint>();
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
@@ -66,11 +64,15 @@ const rfq = { address: dep.rfq as Address, abi: rfqAuctionAbi } as const;
 async function main() {
   log("ops", ops.address, (Number(await pc.getBalance({ address: ops.address })) / 1e18).toFixed(3), "MON");
 
-  // 1. gas money for the bidders
+  // 1. gas money for the bidders, and for the independent taker the worker runs (TESTNET_TAKER_ADDRESS)
   for (const m of mms) {
     if ((await pc.getBalance({ address: m.address })) < parseEther("0.05")) {
       await send(ops, `fund ${m.address.slice(0, 8)}`, { to: m.address, value: parseEther("0.06") });
     }
+  }
+  const taker = env.TESTNET_TAKER_ADDRESS as Address | undefined;
+  if (taker && (await pc.getBalance({ address: taker })) < parseEther("0.1")) {
+    await send(ops, `fund taker ${taker.slice(0, 8)}`, { to: taker, value: parseEther("0.25") });
   }
   // 2. test USDC for bonds
   for (const m of mms) {
@@ -81,27 +83,9 @@ async function main() {
       await send(ops, `mint USDC to ${m.address.slice(0, 8)}`, { ...usdc, functionName: "mint", args: [m.address, 100_000_000_000n] });
     }
   }
-  // 3. the RFQ (same terms as DeployTestnet.s.sol)
-  if ((await pc.readContract({ ...rfq, functionName: "rfqCount" })) === 0n) {
-    const terms = {
-      market: dep.market as Address,
-      baseInventory: 10_000_000n,
-      quoteInventory: 50_000_000_000n,
-      maxSpreadBps: 50,
-      minDepthQuote: 10_000_000_000n,
-      epochBlocks: EPOCH_BLOCKS,
-      uptimeWindowEpochs: 20,
-      uptimeBps: 9000,
-      retainerPerBlock: 20_000n,
-      durationBlocks: BigInt(EPOCH_BLOCKS) * DURATION_EPOCHS,
-      noticeBlocks: 2_000n,
-      bondAmount: 10_000_000_000n,
-      slashAmount: 500_000_000n,
-      pauseExcused: true,
-    };
-    await send(ops, "openRFQ", { ...rfq, functionName: "openRFQ", args: [terms, 2_000n, "ipfs://quoral-testnet/xaut0-usdc.json"] });
-  }
-  const id = await pc.readContract({ ...rfq, functionName: "rfqCount" });
+  // 3. the RFQ that DeployTestnet.s.sol opened
+  const id = BigInt(dep.rfqId ?? (await pc.readContract({ ...rfq, functionName: "rfqCount" })));
+  if (id === 0n) throw new Error("no RFQ: run forge script DeployTestnet first");
   // 4. bonded bids
   for (const [i, m] of mms.entries()) {
     const [, , active] = await pc.readContract({ ...rfq, functionName: "bids", args: [id, m.address] });
@@ -116,8 +100,8 @@ async function main() {
   // 5. award the lowest bid
   const r = await pc.readContract({ ...rfq, functionName: "rfq", args: [id] });
   if (r.status === 1) {
-    const [best] = await pc.readContract({ ...rfq, functionName: "bestBid", args: [id] });
-    await send(ops, `award ${best.slice(0, 8)}`, { ...rfq, functionName: "award", args: [id, best] });
+    const [best, rate] = await pc.readContract({ ...rfq, functionName: "bestBid", args: [id] });
+    await send(ops, `award ${best.slice(0, 8)} at ${rate}/block`, { ...rfq, functionName: "award", args: [id, best, rate] });
   }
   // 6. record the live addresses
   const done = await pc.readContract({ ...rfq, functionName: "rfq", args: [id] });

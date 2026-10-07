@@ -1,5 +1,5 @@
-# Quoral house quoter + keeper on Monad testnet. One tick per minute; at most one signed tx per tick.
-# Secret (never in this file): OPERATOR_KEY, set with `wrangler secret put OPERATOR_KEY`.
+# Quoral house quoter + keeper (and an independent test taker) on Monad testnet. One tick per minute; at most one
+# signed tx per tick. Secrets (never in this file): OPERATOR_KEY and TAKER_KEY, set with `wrangler secret put`.
 name = "quoral-tick"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
@@ -12,6 +12,9 @@ crons = ["* * * * *"]
 [vars]
 CHAIN_ID = "10143"
 RPC_URL = "https://testnet-rpc.monad.xyz"
-VAULT = "0x79Fc5C5F56F2b41CfBd333Ce954Bd4EEb5Ce1724"
-SETTLE_EVERY = "10"
-BLOCK_MS = "306"
+VAULT = "0xe66927bC8fd1F51F66E324c9D60eD4418bd0CCd7"
+SETTLE_EVERY = "6" # one settlement per hour of 10-minute epochs
+BLOCK_MS = "302"
+FLOW_PROB = "0.08" # chance per idle tick that the taker sends a market order (about 4 an hour)
+PAUSED = "0" # "1" = report only, send nothing
+# reference price: Kuru's XAUt0-USDC book on Monad mainnet (defaults in src/tick.ts)

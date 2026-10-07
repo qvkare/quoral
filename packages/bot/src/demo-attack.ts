@@ -5,6 +5,8 @@
  *   2. give notice / rotate itself                → NotParty
  *   3. cross the book (post-only)                 → PostOnlyError (Kuru)
  *   4. quote wider than the SLA                   → SpreadTooWide
+ *   5. pull the quotes right after the proof       → NotEnded (no cancel while live)
+ *   6. walk the mid away from the market           → MidMovedTooFar (per-epoch drift cap)
  */
 import { BaseError, ContractFunctionRevertedError, createWalletClient, http, parseAbi, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -40,7 +42,13 @@ async function main() {
   const [b, a] = await publicClient.readContract({ address: terms.market, abi: iKuruOrderBookAbi, functionName: "bestBidAsk" });
   const { bid, ask } = parseBestBidAsk(b, a);
   const pp = Number(s.pricePrecision);
-  const mid = bid && ask ? (bid + ask) / 2 : 3900;
+  const params = await publicClient.readContract({ address: terms.market, abi: iKuruOrderBookAbi, functionName: "getMarketParams" });
+  const tickSize = Number(params[6]) || 1;
+  /** float price → Kuru price units on the market's tick, so every attempt fails for its own reason */
+  const px = (p: number) => Math.round((p * pp) / tickSize) * tickSize;
+  const ref0 = (await publicClient.readContract({ address: vault, abi: inventoryVaultAbi, functionName: "priceRef" })) as any;
+  // measure from the vault's last proven mid when the book has nobody else on it
+  const mid = bid && ask ? (bid + ask) / 2 : ref0.lastMid2 > 0n ? Number(ref0.lastMid2) / 2 / pp : 3900;
   const size = BigInt(Math.ceil((15_000 / mid) * Number(s.sizePrecision)));
   log("attack", `operator ${op} vs vault ${vault}; book ${bid?.toFixed(2)} / ${ask?.toFixed(2)}`);
 
@@ -49,19 +57,29 @@ async function main() {
   await attempt("operator proposes itself a new operator", op, vault, "proposeOperator", [op]);
   // Post-only: the vault replaces its own quotes first, so the thing to cross must belong to someone else.
   // On mainnet the book has other makers; on the local mock we rest a third-party ask for the test.
-  const third = chainId === 31337 ? await restThirdPartyAsk(terms.market, Math.round(mid * 1.003 * pp), BigInt(s.sizePrecision) / 10n) : undefined;
+  const third = chainId === 31337 ? await restThirdPartyAsk(terms.market, px(mid * 1.003), BigInt(s.sizePrecision) / 10n) : undefined;
   const otherAsk = third ? third.price / pp : ask;
   if (otherAsk) {
-    const crossingBid = Math.round(otherAsk * 1.0005 * pp);
     await attempt(`bid 5 bps through someone else's ask at ${otherAsk.toFixed(2)} (post-only)`, op, vault, "requote", [
-      [crossingBid], [size], [Math.round(otherAsk * 1.004 * pp)], [size],
+      [px(otherAsk * 1.0005)], [size], [px(otherAsk * 1.004)], [size],
     ]);
   }
   if (third) await third.cancel();
   const wide = Number(terms.maxSpreadBps) * 2;
   await attempt(`quote ${wide} bps wide (SLA ${terms.maxSpreadBps})`, op, vault, "requote", [
-    [Math.round(mid * (1 - wide / 2e4) * pp)], [size], [Math.round(mid * (1 + wide / 2e4) * pp)], [size],
+    [px(mid * (1 - wide / 2e4))], [size], [px(mid * (1 + wide / 2e4))], [size],
   ]);
+  await attempt("pull the quotes right after the proof", op, vault, "cancel");
+  const ref = ref0;
+  const cap = Number(terms.maxMidMoveBps);
+  if (cap > 0 && ref.lastMid2 > 0n) {
+    // twice the allowed move away from the last proven mid, quoted tight so only the drift cap can object
+    const proven = Number(ref.lastMid2) / 2 / pp;
+    const far = proven * (1 - (2 * cap * Math.max(1, ref.anchorGap)) / 1e4);
+    await attempt(`walk the mid ${(2 * cap) / 100}% below the last proof (cap ${cap / 100}% per epoch)`, op, vault, "requote", [
+      [px(far * 0.9995)], [size], [px(far * 1.0005)], [size],
+    ]);
+  }
 }
 
 /** Local demo only: anvil account #5 rests a small ask on the mock book, returning a cleanup function. */
@@ -85,7 +103,7 @@ async function restThirdPartyAsk(market: Address, price: number, size: bigint) {
   await send(d.marginAccount, "deposit", [account.address, d.base, 10n ** 6n]);
   await send(market, "addSellOrder", [price, size, false]);
   const id = (await publicClient.readContract({ address: market, abi, functionName: "s_orderIdCounter" })) as number;
-  log("attack", `(local) a third party rests an ask at ${(price / 100).toFixed(2)}, order ${id}`);
+  log("attack", `(local) a third party rests an ask at price units ${price}, order ${id}`);
   return { price, cancel: async () => void (await send(market, "batchCancelOrders", [[id]])) };
 }
 

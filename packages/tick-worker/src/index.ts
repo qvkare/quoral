@@ -11,11 +11,12 @@ export default {
     );
   },
 
-  /** Read-only health check: GET / returns the agreement state and the operator's gas balance. */
+  /** Read-only health check: GET / returns the agreement state and the operator's gas balance (503 when behind). */
   async fetch(req: Request, env: Env): Promise<Response> {
     if (new URL(req.url).pathname !== "/") return new Response("not found", { status: 404 });
     try {
-      return Response.json(await status(env), { headers: { "cache-control": "no-store" } });
+      const s = await status(env);
+      return Response.json(s, { status: s.ok ? 200 : 503, headers: { "cache-control": "no-store" } });
     } catch (e) {
       return Response.json({ error: e instanceof Error ? e.message.slice(0, 300) : String(e) }, { status: 502 });
     }
