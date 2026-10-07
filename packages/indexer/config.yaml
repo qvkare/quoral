@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 # Envio HyperIndex for Quoral. Agreements are discovered from AgreementFactory.AgreementCreated
 # (vault / heartbeat / paystream registered dynamically). Serves the public Liquidity Terms page.
+# This file indexes the public Monad testnet demo (contracts/deployments/10143.json); config.local.yaml indexes anvil.
 name: quoral
 unordered_multichain_mode: true
 field_selection:
@@ -43,6 +44,8 @@ contracts:
       - event: OperatorChanged
       - event: InventoryWithdrawn
       - event: Finalized
+      - event: InventoryLimited
+      - event: InventoryAdded
   - name: Heartbeat
     abi_file_path: abis/Heartbeat.json
     handler: src/EventHandlers.ts
@@ -65,41 +68,30 @@ contracts:
       - event: Trade
 
 networks:
-  # Local demo (anvil): addresses from contracts/deployments/31337.json
-  - id: 31337
-    start_block: 0
+  # Monad testnet. The public RPC caps eth_getLogs at 100 blocks, so ranges stay at 100. With a HyperSync API token
+  # (app.envio.dev/api-tokens, set ENVIO_API_TOKEN) replace rpc_config with: hypersync_config: { url: https://10143.hypersync.xyz }
+  - id: 10143
+    start_block: 68988042
     rpc_config:
-      url: http://127.0.0.1:8545
+      url: https://testnet-rpc.monad.xyz
+      initial_block_interval: 100
+      interval_ceiling: 100
+      backoff_millis: 1000
     contracts:
       - name: AgreementFactory
-        address: ["0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"]
+        address: ["0x6aca764607C1E69f82C4D81042392D7E194eF399"]
       - name: RFQAuction
-        address: ["0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"]
+        address: ["0xDcc21CEA6741ae2fE3cB23664Fe5a4e519ed5102"]
       - name: DisclosureRegistry
-        address: ["0x0165878A594ca255338adfa4d48449f69242Eb8F"]
+        address: ["0xF285e1f2B7FB006486Ec8D6CC6c586c67aA404e4"]
       - name: BondVault
-        address: ["0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"]
-      - name: KuruOrderBook
-        address: ["0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"]
+        address: ["0x8cc867C50470B0aB6689646f715bc6611A028F4e"]
+      - name: KuruOrderBook # test order book with the Kuru v1 interface
+        address: ["0xE44258d4B78cfB25f7cBB7a0630f6d785616aa16"]
       - name: InventoryVault
       - name: Heartbeat
       - name: Paystream
   # Monad mainnet via HyperSync: fill from contracts/deployments/143.json after `forge script Deploy`
   # - id: 143
   #   start_block: <deploy block>
-  #   hypersync_config:
-  #     url: https://monad.hypersync.xyz
-  #   contracts:
-  #     - name: AgreementFactory
-  #       address: ["<factory>"]
-  #     - name: RFQAuction
-  #       address: ["<rfq>"]
-  #     - name: DisclosureRegistry
-  #       address: ["<registry>"]
-  #     - name: BondVault
-  #       address: ["<bondVault>"]
-  #     - name: KuruOrderBook   # XAUt0-USDC / WETH-USDC OrderBooks
-  #       address: ["<market>"]
-  #     - name: InventoryVault
-  #     - name: Heartbeat
-  #     - name: Paystream
+  #   contracts: same names, with the mainnet factory / rfq / registry / bondVault and Kuru market addresses

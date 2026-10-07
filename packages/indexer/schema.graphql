@@ -57,7 +57,7 @@ type Epoch {
 type AgreementEvent {
   id: ID!
   agreement: Agreement!
-  kind: String! # CREATED | CLAWBACK | SLASH | CLAIM | NOTICE | OPERATOR | WITHDRAW | FINALIZED | REFUND | FILL | EXCUSED
+  kind: String! # CREATED | QUOTE | CLAWBACK | SLASH | CLAIM | NOTICE | OPERATOR | WITHDRAW | FINALIZED | REFUND | FILL | EXCUSED | INVENTORY_LIMITED | INVENTORY_ADDED
   amount: BigInt
   detail: String
   block: BigInt!

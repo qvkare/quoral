@@ -5,6 +5,7 @@
   "scripts": {
     "codegen": "envio codegen",
     "dev": "envio dev",
+    "dev:local": "envio dev --config config.local.yaml",
     "start": "envio start",
     "typecheck": "tsc --noEmit"
   },

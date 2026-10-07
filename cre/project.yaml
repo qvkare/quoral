@@ -1,9 +1,10 @@
-# Chainlink CRE project (CLI ≥ v1.29.0 for Monad mainnet support)
+# Chainlink CRE project (CLI v1.30+ for Monad). `local-simulation` runs the workflow on this machine against Monad
+# testnet; with --broadcast its report goes through Chainlink's MockKeystoneForwarder to CREKeeperReceiver.
+local-simulation:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz
 production-settings:
   rpcs:
     - chain-name: monad-mainnet
       url: https://rpc.monad.xyz
-staging-settings:
-  rpcs:
-    - chain-name: monad-testnet
-      url: https://testnet-rpc.monad.xyz

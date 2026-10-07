@@ -1,3 +1,9 @@
+local-simulation:
+  user-workflow:
+    workflow-name: "quoral-epoch-keeper"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.testnet.json"
 production-settings:
   user-workflow:
     workflow-name: "quoral-epoch-keeper"

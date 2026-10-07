@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+# Envio HyperIndex for Quoral. Agreements are discovered from AgreementFactory.AgreementCreated
+# (vault / heartbeat / paystream registered dynamically). Serves the public Liquidity Terms page.
+name: quoral
+unordered_multichain_mode: true
+field_selection:
+  transaction_fields:
+    - hash
+contracts:
+  - name: AgreementFactory
+    abi_file_path: abis/AgreementFactory.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: AgreementCreated
+  - name: RFQAuction
+    abi_file_path: abis/RFQAuction.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: RFQOpened
+      - event: BidPlaced
+      - event: BidWithdrawn
+      - event: Awarded
+      - event: RFQCancelled
+  - name: DisclosureRegistry
+    abi_file_path: abis/DisclosureRegistry.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: Disclosed
+      - event: URIUpdated
+  - name: BondVault
+    abi_file_path: abis/BondVault.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: Assigned
+      - event: Slashed
+      - event: Released
+  - name: InventoryVault
+    abi_file_path: abis/InventoryVault.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: Requoted
+      - event: NoticeGiven
+      - event: OperatorChanged
+      - event: InventoryWithdrawn
+      - event: Finalized
+      - event: InventoryLimited
+      - event: InventoryAdded
+  - name: Heartbeat
+    abi_file_path: abis/Heartbeat.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: HeartbeatRecorded
+      - event: EpochExcused
+      - event: EpochSettled
+      - event: UptimeBreached
+  - name: Paystream
+    abi_file_path: abis/Paystream.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: Clawback
+      - event: Claimed
+      - event: Refunded
+  - name: KuruOrderBook
+    abi_file_path: abis/IKuruOrderBook.json
+    handler: src/EventHandlers.ts
+    events:
+      - event: Trade
+
+networks:
+  # Local demo (anvil): addresses from contracts/deployments/31337.json
+  - id: 31337
+    start_block: 0
+    rpc_config:
+      url: http://127.0.0.1:8545
+    contracts:
+      - name: AgreementFactory
+        address: ["0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"]
+      - name: RFQAuction
+        address: ["0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"]
+      - name: DisclosureRegistry
+        address: ["0x0165878A594ca255338adfa4d48449f69242Eb8F"]
+      - name: BondVault
+        address: ["0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"]
+      - name: KuruOrderBook
+        address: ["0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"]
+      - name: InventoryVault
+      - name: Heartbeat
+      - name: Paystream

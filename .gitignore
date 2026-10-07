@@ -13,3 +13,4 @@ generated/
 *.log
 .DS_Store
 *.tsbuildinfo
+.next-*/

@@ -9,6 +9,7 @@ import { loadAgreement, resolveAgreement, type AgreementView } from "@/lib/agree
 import { publicClient, fmt, short, blocksToDuration, isAddress, explorerAddr, explorerTx, BLOCK_MS, ENVIO_URL, VENUE } from "@/lib/chain";
 import { Ledger, StatusPill, Skeleton } from "@/components/ui";
 import { Score } from "@/components/Score";
+import { envioRows } from "@/lib/envio";
 
 export default function TermsPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -99,7 +100,7 @@ function Terms({ vault }: { vault: Address }) {
         items={[
           { k: "Spread, last proof", v: has ? `${a.proof.spreadBps} bps` : "n/a", s: `limit ${t.maxSpreadBps} bps` },
           { k: "Depth per side", v: has ? `${fmt(a.proof.bidDepth, qd, 0)} / ${fmt(a.proof.askDepth, qd, 0)}` : "n/a", s: `minimum ${fmt(t.minDepthQuote, qd, 0)} ${Q}` },
-          { k: "Uptime, this window", v: `${(Number(a.epoch.uptimeBps) / 100).toFixed(1)}%`, s: `target ${t.uptimeBps / 100}%, ${a.epoch.allowedMisses} misses allowed in ${a.epoch.windowEpochs}` },
+          { k: "Uptime, this window", v: `${(Number(a.epoch.uptimeBps) / 100).toFixed(1)}%`, s: `target ${t.uptimeBps / 100}%, ${a.epoch.allowedMisses} ${a.epoch.allowedMisses === 1 ? "miss" : "misses"} allowed in ${a.epoch.windowEpochs}` },
           { k: "Returned to the issuer", v: `${fmt(returned, qd)} ${Q}`, s: "clawbacks and bond slashes", pencil: returned > 0n },
         ]}
       />
@@ -231,6 +232,13 @@ function stateRows(a: AgreementView): Row[] {
 function Activity({ a }: { a: AgreementView }) {
   const { data } = usePoll(
     async (): Promise<Row[]> => {
+      if (ENVIO_URL) {
+        try {
+          return await envioRows(a);
+        } catch {
+          // fall through to the chain
+        }
+      }
       const latest = await publicClient.getBlockNumber();
       const fromBlock = latest > 20_000n ? latest - 20_000n : 0n;
       const qd = a.quote.decimals;
@@ -287,7 +295,7 @@ function Activity({ a }: { a: AgreementView }) {
         <span className="muted small">{ENVIO_URL ? "Envio HyperIndex" : "Read from the chain"}</span>
       </div>
       {!data?.length ? (
-        <p className="muted">No clawbacks, slashes or notices yet.</p>
+        <p className="muted">{ENVIO_URL ? "No events indexed yet." : "No clawbacks, slashes or notices yet."}</p>
       ) : (
         <div className="tbl-wrap">
           <table>

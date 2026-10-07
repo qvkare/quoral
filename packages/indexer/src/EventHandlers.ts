@@ -211,6 +211,20 @@ InventoryVault.Requoted.handler(async ({ event, context }) => {
     lastBestAsk: bestAsk,
     lastQuoteBlock: BigInt(event.block.number),
   });
+  // every proof is a public transaction: keep it in the agreement's log with its hash
+  logEvent(context, event, a.id, "QUOTE", undefined, `epoch ${event.params.epoch}: ${bestBid} / ${bestAsk}, ${spreadBps} bps`);
+});
+
+InventoryVault.InventoryLimited.handler(async ({ event, context }) => {
+  const a = await context.Agreement.get(lc(event.srcAddress));
+  if (!a) return;
+  const side = event.params.askShort ? "base" : "quote";
+  logEvent(context, event, a.id, "INVENTORY_LIMITED", undefined, `epoch ${event.params.epoch}: ${side} used up, all of it posted`);
+});
+
+InventoryVault.InventoryAdded.handler(async ({ event, context }) => {
+  const a = await context.Agreement.get(lc(event.srcAddress));
+  if (a) logEvent(context, event, a.id, "INVENTORY_ADDED", event.params.quoteAmount, `base ${event.params.baseAmount}`);
 });
 
 InventoryVault.NoticeGiven.handler(async ({ event, context }) => {

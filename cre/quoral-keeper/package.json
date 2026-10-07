@@ -2,6 +2,6 @@
   "name": "quoral-cre-keeper",
   "private": true,
   "type": "module",
-  "scripts": { "simulate": "cre workflow simulate ./ --target production-settings" },
+  "scripts": { "simulate": "cd .. && cre workflow simulate quoral-keeper --target local-simulation --non-interactive --trigger-index 0", "simulate:broadcast": "cd .. && cre workflow simulate quoral-keeper --target local-simulation --non-interactive --trigger-index 0 --broadcast" },
   "dependencies": { "@chainlink/cre-sdk": "^1.23.0", "viem": "^2.38.0" }
 }

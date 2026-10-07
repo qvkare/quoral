@@ -1,0 +1,9 @@
+{
+  "schedule": "*/30 * * * * *",
+  "chainSelectorName": "monad-testnet",
+  "isTestnet": true,
+  "receiver": "0xb289a5d9Cdd96A489a94AaA1b785C0EA83aa4dDd",
+  "factory": "0x6aca764607C1E69f82C4D81042392D7E194eF399",
+  "gasLimit": "1500000",
+  "maxAgreements": 25
+}
