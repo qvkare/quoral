@@ -5,21 +5,27 @@ export type LogRow = { block: bigint; tx?: string; when?: string; text: string; 
 
 type Ev = { kind: string; amount: string | null; detail: string | null; block: string; txHash: string };
 
-/** The agreement's history from Envio HyperIndex: every proof, fill, clawback and slash with its transaction. */
-export async function envioRows(a: AgreementView, limit = 30): Promise<LogRow[]> {
+/**
+ * The agreement's history from Envio HyperIndex with transaction hashes: the latest proofs, plus every fill, clawback,
+ * slash and lifecycle event, so a proof every epoch does not push the rarer events off the page.
+ */
+export async function envioRows(a: AgreementView, proofs = 8, others = 30): Promise<LogRow[]> {
   const res = await fetch(ENVIO_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      query: `query ($id: String!, $n: Int!) {
-        AgreementEvent(where: { agreement_id: { _eq: $id } }, order_by: { block: desc }, limit: $n) { kind amount detail block txHash }
+      query: `query ($id: String!, $p: Int!, $o: Int!) {
+        proofs: AgreementEvent(where: { agreement_id: { _eq: $id }, kind: { _eq: "QUOTE" } }, order_by: { block: desc }, limit: $p) { kind amount detail block txHash }
+        others: AgreementEvent(where: { agreement_id: { _eq: $id }, kind: { _neq: "QUOTE" } }, order_by: { block: desc }, limit: $o) { kind amount detail block txHash }
       }`,
-      variables: { id: a.vault.toLowerCase(), n: limit },
+      variables: { id: a.vault.toLowerCase(), p: proofs, o: others },
     }),
   });
-  const j = (await res.json()) as { data?: { AgreementEvent: Ev[] }; errors?: { message: string }[] };
+  const j = (await res.json()) as { data?: { proofs: Ev[]; others: Ev[] }; errors?: { message: string }[] };
   if (!j.data) throw new Error(j.errors?.[0]?.message ?? `envio ${res.status}`);
-  return j.data.AgreementEvent.map((e) => ({ block: BigInt(e.block), tx: e.txHash, ...describe(a, e) }));
+  return [...j.data.proofs, ...j.data.others]
+    .sort((x, y) => Number(BigInt(y.block) - BigInt(x.block)))
+    .map((e) => ({ block: BigInt(e.block), tx: e.txHash, ...describe(a, e) }));
 }
 
 function describe(a: AgreementView, e: Ev): { text: string; pencil?: boolean } {

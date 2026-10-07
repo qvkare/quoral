@@ -81,8 +81,10 @@ What runs, all onchain:
   serves a health check at https://quoral-tick.qvkare.workers.dev (HTTP 503 once quoting falls behind).
 - **An independent taker** (a separate key in the same worker) sends market buys and sells against the book now and
   then, so the vault sees real fills, its inventory moves, and the skew reacts.
-- **History**: the Envio indexer (`packages/indexer`) records every proof, fill, clawback and slash with its
-  transaction hash; the agreement page shows it when `NEXT_PUBLIC_ENVIO_URL` is set, and falls back to contract state.
+- **History**: the Envio indexer (`packages/indexer`) runs on Envio Cloud from the `envio` branch and records every
+  proof, fill, clawback and slash with its transaction hash
+  ([GraphQL](https://indexer.dev.hyperindex.xyz/62e2374/v1/graphql)). The agreement page's enforcement log reads it,
+  and falls back to contract state without it.
 
 Contract addresses and the transactions behind each step are listed in [Testnet record](#testnet-record) at the end.
 
@@ -200,7 +202,7 @@ AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filter @quoral/bot 
 - **No cancel while live**: the MM cannot pull quotes in an emergency; it can only replace them with compliant ones. The issuer's levers are notice and, with the MM, operator rotation.
 - **Inventory shortfall is the issuer's**: a side that runs out is excused by posting everything left (`InventoryLimited`); a two-sided SLA needs inventory on both sides at the start.
 - **No volume or price targets, no token loans, no call options** exist in the contract by construction. The fee is time-based, not per trade.
-- The Envio indexer runs on the testnet demo through the public RPC (HyperSync now needs an API token); hosting it on Envio Cloud takes a GitHub connection in the Envio dashboard. The web app reads live state straight from RPC and uses the indexer only for history.
+- The Envio indexer runs on Envio Cloud's free development plan, which gives each deployment its own endpoint and deletes it after 30 days, so the site's `NEXT_PUBLIC_ENVIO_URL` changes with each indexer deployment. It reads Monad testnet through the public RPC. The web app reads live state straight from RPC and uses the indexer only for history.
 - The CRE workflow runs in CRE's local simulation against Monad testnet and writes through Chainlink's MockKeystoneForwarder (see [Testnet record](#testnet-record)); deploying it to a DON needs Chainlink's deploy access.
 - The testnet agreement was deployed before the first-epoch drift fix (commit `ccb2e5c`), so its epoch 0 was uncapped; every later epoch is capped.
 
