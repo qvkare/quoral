@@ -10,6 +10,7 @@ import { useSyncExternalStore } from "react";
  * on the first click that asks for sound: Listen, or a playback (which plays once without turning Listen on).
  */
 const WHITE = [0, 2, 4, 5, 7, 9, 11];
+const VOLUME = 0.4; // overall output, after the limiter: background level, never full scale
 
 /** Staff step to MIDI note: step 0 = E4 (64), step 8 = F5 (77), step -2 = C4 on the first ledger line below. */
 export function stepMidi(step: number) {
@@ -42,11 +43,14 @@ function engine() {
   limit.ratio.value = 4;
   limit.attack.value = 0.003;
   limit.release.value = 0.25;
+  const volume = ctx.createGain();
+  volume.gain.value = VOLUME;
   bus.connect(limit);
   bus.connect(room);
   room.connect(wet);
   wet.connect(limit);
-  limit.connect(ctx.destination);
+  limit.connect(volume);
+  volume.connect(ctx.destination);
   hammer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
   const h = hammer.getChannelData(0);
   for (let i = 0; i < h.length; i++) h[i] = Math.random() * 2 - 1;

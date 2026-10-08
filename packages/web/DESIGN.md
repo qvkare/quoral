@@ -121,7 +121,7 @@ drawn and heard exactly.
 Off by default and never started without a click. The staff is read as a treble staff, so a notehead sounds the pitch
 it is drawn at (bottom line E4, top line F5, ledger lines beyond): a proven bar sounds its chord on a piano voice
 with the top note leading, a rest is silence, and a settled miss makes one pencil stroke. The piano is synthesised
-from partials, with no samples to load or license. Listen in the rehearsal starts its tune from the first note; Play
+from partials, with no samples to load or license, and everything plays at 40% of full scale behind a limiter. Listen in the rehearsal starts its tune from the first note; Play
 it back plays the visible live bars once, one beat per bar at the tempo marking, without turning Listen on. The live
 score never sounds by itself, so it cannot cut into the rehearsal's melody.
 
