@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { Bar } from "@/lib/agreement";
+import { playPencil, playSteps, releaseSolo, takeSolo } from "@/lib/sound";
 
 /**
  * The agreement drawn as a choir part (see DESIGN.md).
  *   bar        = epoch
  *   chord      = resting bid (lower note) + ask (upper note), proven in the requote tx
  *   whole rest = no quote; once settled it is circled in red pencil with the clawed-back amount
+ *   multirest  = three or more missed bars in a row, engraved as one long rest with the count above
  *   G.P.       = general pause: the venue was paused, the epoch is excused
  * Noteheads snap to staff lines and spaces, and stems follow engraving rules (down above the middle line).
+ * In a text score bars keep one width, so a young score shows empty measures ahead of the playhead and fills left to
+ * right.
  */
 type Variant = "hero" | "full" | "mini";
 const SPEC: Record<Variant, { g: number; minBar: number; text: boolean }> = {
@@ -18,26 +22,71 @@ const SPEC: Record<Variant, { g: number; minBar: number; text: boolean }> = {
   mini: { g: 3.4, minBar: 12, text: false },
 };
 
+export type ScoreHandle = { play: () => void; stop: () => void };
+
 export type ScoreProps = {
   bars: Bar[]; // oldest first; the last entry is the current epoch
   current: bigint;
   settled: bigint; // epochs < settled are final
   progress: number; // 0..1 through the current bar
-  clawback?: string; // amount returned per missed bar, e.g. "0.095"
+  clawback?: number; // quote tokens returned to the issuer per missed bar
   tempoMs?: number; // block time, shown as ♩ = …
   blocksPerBar?: number;
   variant?: Variant;
+  sound?: boolean; // sound new chords and newly settled misses as they arrive, once the visitor turned sound on
+  onPlaying?: (playing: boolean) => void;
+  ref?: Ref<ScoreHandle>;
 };
 
-export function Score({ bars, current, settled, progress, clawback, tempoMs, blocksPerBar, variant = "hero" }: ScoreProps) {
+type Item = { kind: "bar"; bar: Bar } | { kind: "multi"; bars: Bar[]; final: boolean };
+const slotsOf = (it: Item) => (it.kind === "multi" ? 2 : 1);
+const keyOf = (it: Item) => (it.kind === "multi" ? `m${it.bars[0].epoch}` : `b${it.bar.epoch}`);
+const money = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+
+/** Runs of three or more missed bars with the same settlement state become one multirest. */
+function group(bars: Bar[], current: bigint, settled: bigint, multi: boolean): Item[] {
+  const out: Item[] = [];
+  let run: Bar[] = [];
+  let runFinal = false;
+  const flush = () => {
+    if (run.length >= 3) out.push({ kind: "multi", bars: run, final: runFinal });
+    else for (const b of run) out.push({ kind: "bar", bar: b });
+    run = [];
+  };
+  for (const b of bars) {
+    const miss = multi && b.status !== 1 && b.status !== 2 && b.epoch < current;
+    const final = b.epoch < settled;
+    if (!miss || (run.length > 0 && final !== runFinal)) flush();
+    if (miss) {
+      runFinal = final;
+      run.push(b);
+    } else out.push({ kind: "bar", bar: b });
+  }
+  flush();
+  return out;
+}
+
+export function Score({
+  bars,
+  current,
+  settled,
+  progress,
+  clawback,
+  tempoMs,
+  blocksPerBar,
+  variant = "hero",
+  sound = false,
+  onPlaying,
+  ref,
+}: ScoreProps) {
   const spec = SPEC[variant];
   const g = spec.g;
-  const ref = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(0);
   useEffect(() => {
-    if (!ref.current) return;
+    if (!box.current) return;
     const ro = new ResizeObserver(([e]) => setW(Math.floor(e.contentRect.width)));
-    ro.observe(ref.current);
+    ro.observe(box.current);
     return () => ro.disconnect();
   }, []);
 
@@ -47,12 +96,23 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
   const bottom = top + 4 * g;
   const H = bottom + (spec.text ? stemLen + 24 : stemLen + 2);
 
-  const n = W > 0 ? Math.max(1, Math.min(bars.length, Math.floor(W / spec.minBar))) : 0;
-  const visible = bars.slice(-n);
-  const bw = n > 0 ? (W - 1) / n : 0;
+  // fit whole items from the right; a multirest takes two bar widths. A mini score stretches what it has to the full
+  // width; a text score keeps its bar width and leaves the measures to come empty.
+  const items = group(bars, current, settled, spec.text);
+  const fits = W > 0 ? Math.max(1, Math.floor(W / spec.minBar)) : 0;
+  const cap = spec.text ? fits : Math.min(fits, items.reduce((n, it) => n + slotsOf(it), 0));
+  let start = items.length;
+  let used = 0;
+  while (start > 0 && used + slotsOf(items[start - 1]) <= cap) used += slotsOf(items[--start]);
+  if (start === items.length && items.length > 0 && cap > 0) used = slotsOf(items[--start]);
+  const visible = items.slice(start);
+  const bw = cap > 0 ? (W - 1) / cap : 0;
+  const slotX: number[] = [];
+  visible.reduce((s, it) => (slotX.push(s * bw), s + slotsOf(it)), 0);
 
   // map a price to a staff step (0 = bottom line, 8 = top line, in half-gaps) over the visible quotes' range
-  const prices = visible.flatMap((b) => [b.bid, b.ask].filter((p): p is number => p !== undefined));
+  const shown = visible.flatMap((it) => (it.kind === "bar" ? [it.bar] : it.bars));
+  const prices = shown.flatMap((b) => [b.bid, b.ask].filter((p): p is number => p !== undefined));
   let lo = prices.length ? Math.min(...prices) : 0;
   let hi = prices.length ? Math.max(...prices) : 1;
   if (hi - lo < hi * 1e-6) {
@@ -60,19 +120,106 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
     hi += hi * 0.001 || 1;
   }
   const toStep = (p: number) => Math.max(0, Math.min(8, Math.round(((p - lo) / (hi - lo)) * 8)));
+  /** Staff steps of a proven bar, keeping at least a third between the voices so the noteheads never collide. */
+  const stepsOf = (b: Bar): number[] | null => {
+    if (b.status !== 1) return null;
+    if (b.bid !== undefined && b.ask !== undefined) {
+      let sb = toStep(b.bid);
+      let sa = toStep(b.ask);
+      if (sa - sb < 2) {
+        if (sb + 2 <= 8) sa = sb + 2;
+        else sb = sa - 2;
+      }
+      return [sb, sa];
+    }
+    const p = b.bid ?? b.ask;
+    return p === undefined ? null : [toStep(p)];
+  };
   const yOf = (s: number) => bottom - (s * g) / 2;
   const rx = 0.68 * g;
   const ry = 0.47 * g;
+  const isMiss = (b: Bar) => b.status !== 1 && b.status !== 2 && b.epoch < current;
 
-  const quoted = visible.filter((b) => b.status === 1).length;
-  const missed = visible.filter((b) => b.status !== 1 && b.status !== 2 && b.epoch < current).length;
-  const label = `Score of the last ${visible.length} epochs: ${quoted} quoted, ${missed} without a quote.`;
+  // ---------------------------------------------------------------- sound
+  const latest = useRef({ visible, stepsOf, settled, current, tempoMs, onPlaying });
+  latest.current = { visible, stepsOf, settled, current, tempoMs, onPlaying };
 
-  const numberEvery = n > 18 ? 4 : n > 9 ? 2 : 1;
-  const tempoW = spec.text && tempoMs ? 128 : 0;
+  // new chords and newly circled rests, as they arrive (never the history on first load)
+  const seen = useRef<{ map: Map<string, string>; last: bigint; current: bigint } | null>(null);
+  useEffect(() => {
+    const prev = seen.current;
+    const reset = !prev || current < prev.current;
+    const map = reset ? new Map<string, string>() : prev.map;
+    const events: number[][] = [];
+    for (const b of bars) {
+      const k = b.epoch.toString();
+      const st = b.status === 1 ? "q" : b.status === 2 ? "p" : isMiss(b) && b.epoch < settled ? "m" : "-";
+      const before = map.get(k);
+      if (!reset && st !== before && (before !== undefined || b.epoch > prev.last)) {
+        if (st === "q") events.push(latest.current.stepsOf(b) ?? []);
+        if (st === "m") events.push([]);
+      }
+      map.set(k, st);
+    }
+    seen.current = { map, last: bars.length ? bars[bars.length - 1].epoch : -1n, current };
+    if (!sound) return;
+    events.slice(-4).forEach((steps, i) => (steps.length ? playSteps(steps, i * 0.16) : playPencil(i * 0.16)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bars, settled, current, sound]);
+
+  // playback of the visible bars, one beat per bar at the tempo marking
+  const [playing, setPlaying] = useState<string | null>(null);
+  const timers = useRef<number[]>([]);
+  const solo = useRef<symbol | null>(null);
+  const stop = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    if (solo.current) releaseSolo(solo.current);
+    solo.current = null;
+    setPlaying(null);
+    latest.current.onPlaying?.(false);
+  };
+  const play = () => {
+    stop();
+    const token = takeSolo();
+    solo.current = token;
+    const { visible: v, stepsOf: steps, settled: s, tempoMs: tm } = latest.current;
+    const beat = Math.max(240, Math.min(600, tm ?? 300));
+    let t = 0;
+    v.forEach((it) => {
+      timers.current.push(
+        window.setTimeout(() => {
+          setPlaying(keyOf(it));
+          if (it.kind === "multi") {
+            if (it.final) playPencil(0, token);
+          } else {
+            const st = steps(it.bar);
+            if (st) playSteps(st, 0, token);
+            else if (isMiss(it.bar) && it.bar.epoch < s) playPencil(0, token);
+          }
+        }, t),
+      );
+      t += beat * slotsOf(it);
+    });
+    timers.current.push(window.setTimeout(stop, t + 300));
+    latest.current.onPlaying?.(true);
+  };
+  useImperativeHandle(ref, () => ({ play, stop }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => stop(), []);
+
+  // ---------------------------------------------------------------- drawing
+  const quoted = shown.filter((b) => b.status === 1).length;
+  const missed = shown.filter(isMiss).length;
+  const label = `Score of the last ${shown.length} epochs: ${quoted} quoted, ${missed} without a quote.`;
+
+  const numberEvery = cap > 18 ? 4 : cap > 9 ? 2 : 1;
+  const tempoW = spec.text && tempoMs !== undefined ? (blocksPerBar ? 196 : 96) : 0; // keep bar numbers clear of the marking
+  const last = visible[visible.length - 1];
+  const lastIsCurrent = last?.kind === "bar" && last.bar.epoch === current;
 
   return (
-    <div className="score" ref={ref} style={{ height: H }}>
+    <div className="score" ref={box} style={{ height: H }}>
       {W > 0 && (
         <svg width={W} height={H} role="img" aria-label={label}>
           {/* staff */}
@@ -92,22 +239,62 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
             </g>
           )}
 
-          {visible.map((b, i) => {
-            const x = i * bw;
-            const cx = x + bw / 2;
+          {visible.map((it, i) => {
+            const x = slotX[i];
+            const w = bw * slotsOf(it);
+            const cx = x + w / 2;
+            const hit = (title: string) => (
+              <rect className={`hit ${playing === keyOf(it) ? "on" : ""}`} x={x} y={0} width={w} height={H}>
+                <title>{title}</title>
+              </rect>
+            );
+
+            if (it.kind === "multi") {
+              const first = it.bars[0].epoch;
+              const lastEpoch = it.bars[it.bars.length - 1].epoch;
+              const n = it.bars.length;
+              const amount = clawback !== undefined ? money(clawback * n) : undefined;
+              const x0 = x + Math.min(0.22 * w, 20);
+              const x1 = x + w - Math.min(0.22 * w, 20);
+              const mid = top + 2 * g;
+              const cls = it.final ? "" : "unsettled";
+              return (
+                <g key={`m${first}`}>
+                  <line className="barline" x1={x + 0.5} x2={x + 0.5} y1={top} y2={bottom} />
+                  <rect className={`rest ${cls}`} x={x0} y={mid - 0.3 * g} width={x1 - x0} height={0.6 * g} />
+                  <line className={`rest-edge ${cls}`} x1={x0} x2={x0} y1={top + g} y2={top + 3 * g} />
+                  <line className={`rest-edge ${cls}`} x1={x1} x2={x1} y1={top + g} y2={top + 3 * g} />
+                  <text className={`multi ${cls}`} x={cx} y={top - 9} textAnchor="middle">{n}</text>
+                  {it.final && <PencilCircle cx={cx} cy={mid} rx={(x1 - x0) / 2 + 0.9 * g} ry={1.75 * g} seed={Number(first % 997n)} />}
+                  {it.final && amount && (
+                    <text className="amount" x={cx} y={bottom + stemLen + 14} textAnchor="middle">
+                      {"−"}{amount}
+                    </text>
+                  )}
+                  {hit(
+                    `Epochs ${first} to ${lastEpoch}: no quote in ${n} bars` +
+                      (it.final ? (amount ? `, ${amount} returned to the issuer` : ", settled") : ", not settled yet"),
+                  )}
+                </g>
+              );
+            }
+
+            const b = it.bar;
             const isCurrent = b.epoch === current;
             const past = b.epoch < current;
             const final = b.epoch < settled;
-            const showNum = spec.text && i % numberEvery === 0 && x + 4 > tempoW;
+            const showNum = spec.text && Number(b.epoch % BigInt(numberEvery)) === 0 && x + 4 > tempoW;
+            const steps = stepsOf(b);
+            const per = clawback !== undefined ? money(clawback) : undefined;
             const title =
               b.status === 1
-                ? `Epoch ${b.epoch}: bid ${b.bid?.toFixed(2) ?? "none (quote inventory used up)"}, ask ${b.ask?.toFixed(2) ?? "none (base inventory used up)"}, spread ${b.spreadBps} bps, proven at block ${b.block}`
+                ? `Epoch ${b.epoch}: bid ${b.bid?.toFixed(2) ?? "none (quote inventory used up)"}, ask ${b.ask?.toFixed(2) ?? "none (base inventory used up)"}, spread ${b.spreadBps} bps${b.block !== undefined ? `, proven at block ${b.block}` : ""}`
                 : b.status === 2
                   ? `Epoch ${b.epoch}: venue paused, excused`
                   : isCurrent
                     ? `Epoch ${b.epoch}: in progress, waiting for a quote`
                     : final
-                      ? `Epoch ${b.epoch}: no quote${clawback ? `, ${clawback} returned to the issuer` : ""}`
+                      ? `Epoch ${b.epoch}: no quote${per ? `, ${per} returned to the issuer` : ""}`
                       : `Epoch ${b.epoch}: no quote, not settled yet`;
             return (
               <g key={b.epoch.toString()}>
@@ -118,13 +305,9 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
                   </text>
                 )}
 
-                {b.status === 1 && b.bid !== undefined && b.ask !== undefined && (
-                  <Chord key={`c${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} sb={toStep(b.bid)} sa={toStep(b.ask)} yOf={yOf} />
-                )}
+                {steps?.length === 2 && <Chord key={`c${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} sb={steps[0]} sa={steps[1]} yOf={yOf} />}
                 {/* one voice: the other side's inventory was used up and the vault posted all it had */}
-                {b.status === 1 && (b.bid === undefined) !== (b.ask === undefined) && (
-                  <Note key={`n${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} s={toStep((b.bid ?? b.ask)!)} yOf={yOf} />
-                )}
+                {steps?.length === 1 && <Note key={`n${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} s={steps[0]} yOf={yOf} />}
 
                 {b.status === 2 && spec.text && (
                   <text className="gp" x={cx} y={top - 10} textAnchor="middle">G.P.</text>
@@ -135,9 +318,9 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
                   <g>
                     <rect className={`rest ${final ? "" : "unsettled"}`} x={cx - 0.62 * g} y={top + g} width={1.24 * g} height={0.56 * g} />
                     {final && spec.text && <PencilCircle cx={cx} cy={top + 1.3 * g} rx={1.7 * g} ry={1.3 * g} seed={Number(b.epoch % 997n)} />}
-                    {final && spec.text && clawback && (
+                    {final && spec.text && per && (
                       <text className="amount" x={cx} y={bottom + stemLen + 14} textAnchor="middle">
-                        {"−"}{clawback}
+                        {"−"}{per}
                       </text>
                     )}
                   </g>
@@ -149,27 +332,29 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
                   </text>
                 )}
 
-                <rect className="hit" x={x} y={0} width={bw} height={H}>
-                  <title>{title}</title>
-                </rect>
+                {hit(title)}
               </g>
             );
           })}
 
+          {/* measures still to come, drawn faint */}
+          {Array.from({ length: Math.max(0, cap - used) }, (_, j) => {
+            const x = (used + j) * bw;
+            return j === 0 && !lastIsCurrent ? null : <line key={`a${j}`} className="barline ahead" x1={x + 0.5} x2={x + 0.5} y1={top} y2={bottom} />;
+          })}
+
           {/* closing barline unless the last visible bar is still being played */}
-          {visible.length > 0 && visible[visible.length - 1].epoch !== current && (
-            <line className="barline" x1={W - 0.5} x2={W - 0.5} y1={top} y2={bottom} />
-          )}
+          {visible.length > 0 && !lastIsCurrent && <line className="barline" x1={used * bw - 0.5} x2={used * bw - 0.5} y1={top} y2={bottom} />}
 
           {/* playhead */}
-          {visible.length > 0 && visible[visible.length - 1].epoch === current && (
+          {lastIsCurrent && (
             <line
               className="playhead"
               x1={0}
               x2={0}
               y1={top - (spec.text ? 8 : 2)}
               y2={bottom + (spec.text ? 8 : 2)}
-              style={{ transform: `translateX(${(n - 1) * bw + Math.min(0.98, Math.max(0.02, progress)) * bw}px)` }}
+              style={{ transform: `translateX(${(used - 1) * bw + Math.min(0.98, Math.max(0.02, progress)) * bw}px)` }}
             />
           )}
         </svg>
@@ -179,11 +364,6 @@ export function Score({ bars, current, settled, progress, clawback, tempoMs, blo
 }
 
 function Chord({ cx, g, rx, ry, stemLen, sb, sa, yOf }: { cx: number; g: number; rx: number; ry: number; stemLen: number; sb: number; sa: number; yOf: (s: number) => number }) {
-  // keep at least a third between the voices so the noteheads never collide
-  if (sa - sb < 2) {
-    if (sb + 2 <= 8) sa = sb + 2;
-    else sb = sa - 2;
-  }
   const yb = yOf(sb);
   const ya = yOf(sa);
   const stemDown = (sa + sb) / 2 >= 4; // engraving rule: above the middle line, stems go down

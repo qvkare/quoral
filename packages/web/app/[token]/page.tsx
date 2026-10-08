@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { decodeEventLog, type Address } from "viem";
+import { decodeEventLog, formatUnits, type Address } from "viem";
 import { heartbeatAbi, paystreamAbi, inventoryVaultAbi } from "@quoral/shared";
 import { usePoll } from "@/lib/hooks";
 import { loadAgreement, resolveAgreement, type AgreementView } from "@/lib/agreement";
@@ -118,7 +118,7 @@ function Terms({ vault }: { vault: Address }) {
           current={a.epoch.current}
           settled={a.epoch.settled}
           progress={progress}
-          clawback={fmt(perBar, qd, 3)}
+          clawback={Number(formatUnits(perBar, qd))}
           tempoMs={BLOCK_MS}
           blocksPerBar={t.epochBlocks}
           variant="full"
@@ -126,7 +126,7 @@ function Terms({ vault }: { vault: Address }) {
         <p className="caption">
           Each bar is one epoch of {t.epochBlocks} blocks. A chord is the vault&apos;s best bid and ask, resting on Kuru and proven in the
           requote transaction, with the spread in bps underneath. A circled rest is a missed epoch whose {fmt(perBar, qd, 3)} {Q} went back to
-          the issuer. So far: {a.counts.quoted.toString()} quoted, {a.counts.excused.toString()} excused, {a.counts.missed.toString()} missed.
+          the issuer, and a run of them is drawn as one long rest with the count above. So far: {a.counts.quoted.toString()} quoted, {a.counts.excused.toString()} excused, {a.counts.missed.toString()} missed.
         </p>
       </section>
 

@@ -38,18 +38,20 @@ The agreement is drawn as a choir part.
 
 | Product fact | Notation |
 |---|---|
-| Epoch (100 blocks, about 30 s) | One bar |
+| Epoch (a run of blocks set in the terms; 1,980 blocks, about 10 min, on the testnet demo) | One bar |
 | Block time | Tempo marking: ♩ = 300 ms |
 | Resting bid and ask, proven in the requote tx | A two-note chord. Noteheads move with price, so the bars read as a melody |
 | Spread | The interval between the two notes. The number under the chord is the spread in bps |
 | Missed epoch | A whole rest. Once settled it gets a red-pencil circle and the clawed-back amount |
+| Three or more missed epochs in a row | A multirest: one long rest with the count above, circled once settled, with the total clawback |
 | Venue pause (excused) | G.P., the general pause, when the whole ensemble is silent |
 | Now | The playhead |
 
 Tests:
 
 - **Portability: pass.** Two voices moving with price, bar by bar, only make sense for two-sided quotes per interval.
-- **Data: pass.** Every note is a recorded proof. Nothing is illustrated.
+- **Data: pass.** Every note in the live score is a recorded proof. The rehearsal is simulated, says so in its own
+  panel, and never mixes with live bars.
 - **Failure: pass.** A missed bar is a circled rest with the amount written underneath.
 - **Squint: pass.** At 20% the page is staff lines and ink, unlike anything in the Monad ecosystem.
 - **Explainability: pass.** One caption under the score explains every mark.
@@ -78,8 +80,9 @@ Colour means: someone failed and money moved. Compliance is the normal state, so
 
 ## Layout
 
-- **Alignment and grid:** left-aligned and asymmetric; on the landing page each section head is a 5:7 split of
-  heading and explanation.
+- **Alignment and grid:** left-aligned and asymmetric; on the landing page the hero is the headline beside the
+  rehearsal console (stacked under 1060 px), the live score runs full width under both, and each section head is a
+  5:7 split of heading and explanation.
 - **Separation:** hairline rules and space between sections, not cards.
 - **Tables:** clauses, permissions and agreements are real tables. Under 980 px they become stacked rows.
 - **Panels:** white sheet, 1 px rule, 10 px radius, no shadow, only for forms and consoles.
@@ -96,10 +99,27 @@ Colour means: someone failed and money moved. Compliance is the normal state, so
 - **Empty, loading, error:** skeletons keep the final layout's shape; empty states say what will appear; contract
   errors are mapped to plain sentences ("Only the issuer of this agreement can do that.").
 
+## Rehearsal
+
+The hero's console, where the visitor runs the quoter on the live agreement's terms at one bar every two seconds:
+stop the quotes, widen the spread past the term, thin the depth, or let the venue pause. The outcome follows the
+contract: a requote that breaks a term reverts and proves nothing, an empty bar is a rest that is circled once
+settled, the second miss in an uptime window slashes the bond, and a pause is an excused G.P. A sentence under the
+score says what just happened, and a ruled list shows what was paid, returned and slashed. Each slider marks its term
+as a barline on the track. Nothing is sent to the chain, and the panel says so.
+
+## Sound
+
+Off by default and never started without a click. The staff is read as a treble staff, so a notehead sounds the pitch
+it is drawn at (bottom line E4, top line F5): a proven bar sounds its chord, a rest is silence, and a settled miss
+makes one pencil stroke. The rehearsal's Sound toggle covers the rehearsal and new bars on the live score; Play it
+back plays the visible live bars once, one beat per bar at the tempo marking, without turning the toggle on.
+
 ## Motion
 
 Only two things move. The playhead advances through the current bar, and a new chord settles into its bar (220 ms).
-Both respect `prefers-reduced-motion`. There is no scroll motion.
+The rehearsal is the same two motions at one bar every two seconds; it runs only while it is on screen, and with
+reduced motion it waits for a click. Both respect `prefers-reduced-motion`. There is no scroll motion.
 
 ## Voice
 
@@ -130,5 +150,5 @@ Documented exception: the loading skeleton uses a gradient shimmer (`design-allo
 ## Checks
 
 - `pnpm design:check` runs `scripts/design-check.mjs` on `packages/web` and `README.md`, and runs in CI.
-- Screenshots at 375, 820 and 1280 px with real data. To see the failure state, stop the bot for about 30 seconds
-  so a few bars miss and get settled.
+- Screenshots at 375, 820 and 1280 px with real data. To see the failure state, press Stop the quotes in the
+  rehearsal; on the live agreement, set `PAUSED = "1"` on the worker for a bar and let the keeper settle it.

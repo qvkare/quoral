@@ -114,7 +114,7 @@ adds 15% rather than forge's default 30%.
 | `packages/tick-worker` | Cloudflare Worker for the testnet demo: house quoter tracking Kuru mainnet, keeper, an independent taker, health check |
 | `cre/quoral-keeper` | Chainlink CRE workflow (cron → EVM read → signed report → `CREKeeperReceiver`), with a `local-simulation` target for Monad testnet |
 | `packages/indexer` | Envio HyperIndex on the testnet demo (`config.local.yaml` for anvil): factory-driven registration of vault/heartbeat/paystream, RFQs, bonds, Kuru fills, every proof with its hash |
-| `packages/web` | Next.js 15: landing page, agreements explorer, issuer console (validated SLA form and cost summary), MM console, public `/<token>` terms page, `/badge/<agreement>` SVG; Mera passkey sign-in with time-to-first-tx. Design: the live agreement is drawn as a musical score (one bar per epoch, a chord per proven quote, a red-pencil rest per clawed-back epoch); see [`packages/web/DESIGN.md`](packages/web/DESIGN.md) |
+| `packages/web` | Next.js 15: landing page with a rehearsal console (run the quoter on the live terms: stop the quotes, widen the spread, thin the depth, pause the venue, and watch the clawbacks and the slash), agreements explorer, issuer console (validated SLA form and cost summary), MM console, public `/<token>` terms page, `/badge/<agreement>` SVG; Mera passkey sign-in with time-to-first-tx. Design: the live agreement is drawn as a musical score (one bar per epoch, a chord per proven quote, a red-pencil rest per clawed-back epoch, a multirest for a run of them) that can be played back, pitched as a treble staff; see [`packages/web/DESIGN.md`](packages/web/DESIGN.md) |
 
 ## Quickstart (local, ~2 min)
 

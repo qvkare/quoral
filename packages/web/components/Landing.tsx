@@ -1,21 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { formatUnits } from "viem";
 import { usePoll } from "@/lib/hooks";
 import { listAgreements, loadAgreement, type AgreementView } from "@/lib/agreement";
 import { fmt, short, blocksToDuration, BLOCK_MS, VENUE } from "@/lib/chain";
-import { Score } from "./Score";
+import { Score, type ScoreHandle } from "./Score";
+import { Rehearsal, DEFAULT_TERMS, type SimTerms } from "./Rehearsal";
 import { Skeleton } from "./ui";
 
-/** One poll for the whole landing page: the most recent agreement, with its last 32 bars. */
+/** One poll for the whole landing page: the most recent agreement, with its last 64 bars. */
 const Ctx = createContext<AgreementView | null | undefined>(undefined);
 
 export function LatestProvider({ children }: { children: ReactNode }) {
   const { data } = usePoll(async () => {
     const list = await listAgreements();
     if (!list.length) return null;
-    return loadAgreement(list[list.length - 1], 32, 32);
+    return loadAgreement(list[list.length - 1], 64, 64);
   }, 1500);
   return <Ctx.Provider value={data}>{children}</Ctx.Provider>;
 }
@@ -32,9 +34,35 @@ function useProgress(a: AgreementView | null | undefined) {
   return Math.min(1, a.progress + (now - a.fetchedAt) / (a.terms.epochBlocks * BLOCK_MS));
 }
 
+/** The rehearsal console, on the live agreement's terms once they are read. */
+export function LiveRehearsal() {
+  const a = useLatest();
+  const vault = a?.vault;
+  const terms = useMemo((): SimTerms => {
+    if (!a) return DEFAULT_TERMS;
+    const n = (v: bigint) => Number(formatUnits(v, a.quote.decimals));
+    return {
+      symbol: a.quote.symbol,
+      maxSpreadBps: Number(a.terms.maxSpreadBps),
+      minDepth: n(a.terms.minDepthQuote),
+      perBar: n(a.pay.retainerPerBlock * BigInt(a.terms.epochBlocks)),
+      windowBars: Number(a.epoch.windowEpochs),
+      allowedMisses: Number(a.epoch.allowedMisses),
+      slash: n(a.terms.slashAmount),
+      bond: n(a.terms.bondAmount),
+      barLength: blocksToDuration(a.terms.epochBlocks),
+    };
+    // the terms of an agreement never change, so read them once per agreement
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault]);
+  return <Rehearsal terms={terms} />;
+}
+
 export function LiveScore() {
   const a = useLatest();
   const progress = useProgress(a);
+  const score = useRef<ScoreHandle>(null);
+  const [playing, setPlaying] = useState(false);
 
   if (a === undefined) {
     return (
@@ -69,22 +97,35 @@ export function LiveScore() {
           <span style={{ color: a.pay.clawedBack > 0n ? "var(--pencil)" : undefined }}>
             {fmt(a.pay.clawedBack + a.bond.totalSlashed, qd)} {a.quote.symbol} returned to the issuer
           </span>
+          <button
+            type="button"
+            className="linkbtn"
+            aria-pressed={playing}
+            title="Plays the bars on screen, one beat per bar: a chord for each proof, silence for a rest"
+            onClick={() => (playing ? score.current?.stop() : score.current?.play())}
+          >
+            {playing ? "Stop" : "Play it back"}
+          </button>
         </span>
       </div>
       <Score
+        ref={score}
         bars={a.bars}
         current={a.epoch.current}
         settled={a.epoch.settled}
         progress={progress}
-        clawback={fmt(perBar, qd, 3)}
+        clawback={Number(formatUnits(perBar, qd))}
         tempoMs={BLOCK_MS}
         blocksPerBar={a.terms.epochBlocks}
         variant="hero"
+        sound
+        onPlaying={setPlaying}
       />
       <p className="caption">
         How to read it: each bar is one epoch. A chord is the vault&apos;s best bid (lower note) and best ask (upper note), resting on
-        Kuru and proven in the same transaction; the number under it is the spread in basis points. A rest means no quote. Once that
-        bar is settled it is circled in red and its retainer goes back to the issuer. G.P. marks a venue pause, which is excused.
+        Kuru and proven in the same transaction; the number under it is the spread in basis points. A rest means no quote, and a run
+        of them is engraved as one long rest with the count above. Once settled, a rest is circled in red and its retainer goes back
+        to the issuer. G.P. marks a venue pause, which is excused.
       </p>
     </div>
   );

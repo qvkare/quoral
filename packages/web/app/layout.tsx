@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: { default: "Quoral: market making on contract terms", template: "%s | Quoral" },
   description:
-    "If the quotes stop, the pay stops. Quoral is a market-making agreement on Kuru, Monad's onchain order book: spread and depth proven every 30 seconds, retainer clawed back for every missed bar.",
+    "If the quotes stop, the pay stops. Quoral is a market-making agreement on Kuru, Monad's onchain order book: spread and depth proven onchain every bar, retainer clawed back for every missed bar.",
   openGraph: {
     title: "Quoral: if the quotes stop, the pay stops",
     description: "Market-making agreements on Kuru with onchain proofs, a quote-only inventory vault and public terms.",

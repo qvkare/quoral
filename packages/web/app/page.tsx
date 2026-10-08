@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { LatestProvider, LiveScore, LiveClauses } from "@/components/Landing";
+import { LatestProvider, LiveScore, LiveClauses, LiveRehearsal } from "@/components/Landing";
 
 const PERMISSIONS: { action: string; cells: [string, string, string, string]; critical?: boolean }[] = [
   { action: "Place quotes on Kuru", cells: ["No", "No", "Yes", "No"] },
-  { action: "Cancel resting quotes", cells: ["After the end", "No", "While live", "No"] },
+  { action: "Cancel resting quotes while live", cells: ["No", "No", "No", "No"] },
   { action: "Move inventory out of the vault", cells: ["After notice or expiry", "No", "No", "No"], critical: true },
   { action: "Own the fills", cells: ["Yes, in the vault", "No", "No", "No"], critical: true },
   { action: "Receive the retainer", cells: ["Refunds only", "Yes", "No", "No"] },
@@ -18,15 +18,20 @@ export default function Landing() {
       <LatestProvider>
         <section className="hero">
           <div className="wrap">
-            <h1 className="display">If the quotes stop, the pay stops.</h1>
-            <p className="lead">
-              Quoral turns a token&apos;s market-making deal into a contract on Kuru, Monad&apos;s onchain order book. The market maker quotes
-              from a vault it cannot withdraw from and proves spread and depth every 30 seconds. <strong>Miss a bar and that bar&apos;s retainer
-              goes back to the issuer.</strong>
-            </p>
-            <div className="hero-cta">
-              <Link href="/issuer" className="btn primary lg">Open an RFQ</Link>
-              <Link href="/agreements" className="textlink">Read the live terms</Link>
+            <div className="hero-grid">
+              <div>
+                <h1 className="display">If the quotes stop, the pay stops.</h1>
+                <p className="lead">
+                  Quoral turns a token&apos;s market-making deal into a contract on Kuru, Monad&apos;s onchain order book. The market maker
+                  quotes from a vault it cannot withdraw from, and every bar it has to prove spread and depth onchain.{" "}
+                  <strong>Miss a bar and that bar&apos;s retainer goes back to the issuer.</strong>
+                </p>
+                <div className="hero-cta">
+                  <Link href="/issuer" className="btn primary lg">Open an RFQ</Link>
+                  <Link href="/agreements" className="textlink">Read the live terms</Link>
+                </div>
+              </div>
+              <LiveRehearsal />
             </div>
             <LiveScore />
           </div>
@@ -137,16 +142,16 @@ export default function Landing() {
               <details>
                 <summary>What exactly is measured, and when?</summary>
                 <p>
-                  Every epoch (100 blocks, about 30 seconds on Monad) needs one fresh two-sided quote. Its spread must be within the SLA and its
-                  depth within the band must meet the minimum on both sides. The check runs inside the requote transaction, against the
-                  vault&apos;s own orders.
+                  Every epoch, a run of blocks fixed in the terms (1,980 blocks or about 10 minutes in the live testnet agreement), needs
+                  one fresh two-sided quote. Its spread must be within the SLA and its depth within the band must meet the minimum on both
+                  sides. The check runs inside the requote transaction, against the vault&apos;s own orders.
                 </p>
               </details>
               <details>
                 <summary>Can the market maker walk away with the inventory?</summary>
                 <p>
-                  No. The vault owns the Kuru margin balance and every order. The operator key can only call <code>requote</code> and{" "}
-                  <code>cancel</code>, fills are credited back to the vault, and withdrawals go to the issuer after notice or expiry.
+                  No. The vault owns the Kuru margin balance and every order. The operator key can only call <code>requote</code>, fills
+                  are credited back to the vault, and withdrawals go to the issuer after notice or expiry.
                 </p>
               </details>
               <details>
@@ -159,8 +164,9 @@ export default function Landing() {
               <details>
                 <summary>Who settles the epochs?</summary>
                 <p>
-                  Anyone can. A Chainlink CRE workflow does it every 30 seconds, a self-hosted keeper is the fallback, and both parties have a
-                  reason to do it themselves: the issuer to get refunds, the market maker to get paid.
+                  Anyone can. Quoral&apos;s keeper is a Chainlink CRE workflow with a self-hosted fallback (on this testnet demo the quoting
+                  worker settles about once an hour), and both parties have a reason to do it themselves: the issuer to get refunds, the
+                  market maker to get paid.
                 </p>
               </details>
               <details>
