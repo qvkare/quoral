@@ -6,10 +6,12 @@ import { setSound, useSound } from "@/lib/sound";
 import { Score } from "./Score";
 
 /**
- * The rehearsal: the visitor runs the quoter on the live agreement's terms, at one bar every two seconds.
- * The rules are the contract's: a requote proves the bar only if it is two-sided, within the spread and over the
- * depth; a bar without a proof is a rest, and once settled its retainer goes back to the issuer; the second miss in
- * an uptime window slashes the bond; a venue pause is excused. Nothing here touches the chain.
+ * The rehearsal: the visitor runs the quoter on the live agreement's terms while the simulated price follows a
+ * melody, one note per bar. The quote's ask is the melody and its bid sits the spread below, so a proven bar sounds
+ * the tune with a harmony under it. The rules are the contract's: a requote proves the bar only if it is two-sided,
+ * within the spread and over the depth; a bar without a proof is a rest, and once settled its retainer goes back to
+ * the issuer; the second miss in an uptime window slashes the bond; a venue pause is excused. Nothing here touches
+ * the chain.
  */
 export type SimTerms = {
   symbol: string;
@@ -36,8 +38,41 @@ export const DEFAULT_TERMS: SimTerms = {
   barLength: "10 min",
 };
 
-const BAR_MS = 2000;
-const TICKS = [0.1, 0.3, 0.5, 0.7, 0.9]; // when the simulated quoter tries to requote within a bar
+/** A melody as [staff step, beats]: step 0 is E4 on the bottom line, 5 is C5, 10 is A5 on the first ledger line. */
+type Piece = { id: string; title: string; beatMs: number; notes: [number, number][] };
+
+// Public-domain melodies, all in C major so every note is a white key on the staff.
+const TWINKLE_A: [number, number][] = [[5, 1], [5, 1], [9, 1], [9, 1], [10, 1], [10, 1], [9, 2]];
+const TWINKLE_B: [number, number][] = [[8, 1], [8, 1], [7, 1], [7, 1], [6, 1], [6, 1], [5, 2]];
+const TWINKLE_C: [number, number][] = [[9, 1], [9, 1], [8, 1], [8, 1], [7, 1], [7, 1], [6, 2]];
+const JOY: [number, number][] = [[7, 1], [7, 1], [8, 1], [9, 1], [9, 1], [8, 1], [7, 1], [6, 1], [5, 1], [5, 1], [6, 1], [7, 1]];
+const PIECES: Piece[] = [
+  {
+    id: "k265",
+    title: "Mozart: Ah vous dirai-je, maman",
+    beatMs: 620,
+    notes: [...TWINKLE_A, ...TWINKLE_B, ...TWINKLE_C, ...TWINKLE_C, ...TWINKLE_A, ...TWINKLE_B],
+  },
+  {
+    id: "k525",
+    title: "Mozart: Eine kleine Nachtmusik",
+    beatMs: 540, // the opening, a fourth up from G so it needs no sharps
+    notes: [[5, 1.5], [2, 0.5], [5, 1.5], [2, 0.5], [5, 0.5], [2, 0.5], [5, 0.5], [7, 0.5], [9, 2], [8, 1.5], [6, 0.5], [8, 1.5], [6, 0.5], [8, 0.5], [6, 0.5], [4, 0.5], [6, 0.5], [2, 2]],
+  },
+  {
+    id: "joy",
+    title: "Beethoven: Ode to Joy",
+    beatMs: 600,
+    notes: [...JOY, [7, 1.5], [6, 0.5], [6, 2], ...JOY, [6, 1.5], [5, 0.5], [5, 2]],
+  },
+];
+
+// the price scale behind the staff: the middle line is REF, each step 12.5 bps, so a 25 bps spread is a third
+const REF = 4120;
+const BPS_PER_STEP = 12.5;
+const priceOf = (step: number) => REF * (1 + ((step - 4) * BPS_PER_STEP) / 1e4);
+
+const TICKS = [0.02, 0.25, 0.5, 0.75]; // when the simulated quoter tries to requote within a bar
 const SETTLE_AT = 0.4; // the keeper settles the bar before this far into the next one
 const KEEP = 40;
 
@@ -45,7 +80,9 @@ type Sim = {
   bars: Bar[];
   current: number;
   settled: number;
-  mid: number;
+  note: number; // index of this bar's note in the piece
+  barMs: number; // length of this bar: its note's length
+  restart: boolean; // start the piece over at the next bar
   tick: number; // last quoter tick tried in the current bar
   paid: number; // settled bars paid to the market maker (quoted or excused)
   returned: number; // settled bars without a quote
@@ -54,19 +91,33 @@ type Sim = {
   misses: Record<number, number>; // per uptime window
 };
 
-const fresh = (): Sim => ({ bars: [{ epoch: 0n, status: 0 }], current: 0, settled: 0, mid: 4120, tick: -1, paid: 0, returned: 0, slashes: 0, misses: {} });
+const fresh = (p: Piece): Sim => ({
+  bars: [{ epoch: 0n, status: 0 }],
+  current: 0,
+  settled: 0,
+  note: 0,
+  barMs: p.notes[0][1] * p.beatMs,
+  restart: false,
+  tick: -1,
+  paid: 0,
+  returned: 0,
+  slashes: 0,
+  misses: {},
+});
 const amount = (v: number, dp = 2) => v.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
 
 export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
   const sound = useSound();
+  const [pieceId, setPieceId] = useState(PIECES[0].id);
+  const piece = PIECES.find((p) => p.id === pieceId) ?? PIECES[0];
   const [quoting, setQuoting] = useState(true);
   const [spread, setSpread] = useState(Math.round(T.maxSpreadBps * 0.6));
   const [depth, setDepth] = useState(Math.round((T.minDepth * 1.2) / 500) * 500);
   const [paused, setPaused] = useState(false);
-  const controls = useRef({ quoting, spread, depth, paused, T });
-  controls.current = { quoting, spread, depth, paused, T };
+  const controls = useRef({ quoting, spread, depth, paused, T, piece });
+  controls.current = { quoting, spread, depth, paused, T, piece };
 
-  const sim = useRef<Sim>(fresh());
+  const sim = useRef<Sim>(fresh(piece));
   const clock = useRef(0); // ms into the current bar
   const [, setFrame] = useState(0);
 
@@ -107,33 +158,35 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
   }, [running]);
 
   function advance(s: Sim, dt: number) {
-    const { T: terms } = controls.current;
+    const { T: terms, piece: p } = controls.current;
     clock.current += dt;
-    const p = clock.current / BAR_MS;
-    while (s.tick + 1 < TICKS.length && p >= TICKS[s.tick + 1]) {
+    const progress = clock.current / s.barMs;
+    while (s.tick + 1 < TICKS.length && progress >= TICKS[s.tick + 1]) {
       s.tick++;
       requote(s);
     }
-    if (p >= SETTLE_AT && s.settled < s.current) settle(s, terms);
-    if (p >= 1) {
-      clock.current -= BAR_MS;
+    if (progress >= SETTLE_AT && s.settled < s.current) settle(s, terms);
+    if (progress >= 1) {
+      clock.current -= s.barMs;
       s.current++;
       s.tick = -1;
-      s.mid *= 1 + (Math.random() - 0.5) * 0.004; // the market moves up to 20 bps a bar
+      s.note = s.restart ? 0 : (s.note + 1) % p.notes.length;
+      s.restart = false;
+      s.barMs = p.notes[s.note][1] * p.beatMs;
       s.bars = [...s.bars.slice(-(KEEP - 1)), { epoch: BigInt(s.current), status: 0 }];
     }
   }
 
   /** One quoter tick: the requote either proves the bar or reverts, exactly as SLALib would decide. */
   function requote(s: Sim) {
-    const { quoting: q, spread: sp, depth: d, paused: ps, T: terms } = controls.current;
+    const { quoting: q, spread: sp, depth: d, paused: ps, T: terms, piece: p } = controls.current;
     const bar = s.bars[s.bars.length - 1];
     if (bar.status !== 0) return;
     let next: Bar | undefined;
     if (ps) next = { epoch: bar.epoch, status: 2 }; // anyone may flag the pause; the bar is excused
     else if (q && sp <= terms.maxSpreadBps && d >= terms.minDepth) {
-      const half = sp / 2 / 1e4;
-      next = { epoch: bar.epoch, status: 1, bid: s.mid * (1 - half), ask: s.mid * (1 + half), spreadBps: sp };
+      const ask = priceOf(p.notes[s.note % p.notes.length][0]);
+      next = { epoch: bar.epoch, status: 1, bid: ask * (1 - sp / 1e4), ask, spreadBps: sp };
     }
     if (next) s.bars = [...s.bars.slice(0, -1), next];
   }
@@ -160,7 +213,7 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
   }
 
   function reset() {
-    sim.current = fresh();
+    sim.current = fresh(piece);
     clock.current = 0;
     setQuoting(true);
     setPaused(false);
@@ -168,6 +221,11 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
     setDepth(Math.round((T.minDepth * 1.2) / 500) * 500);
     setStarted(true);
     setFrame((f) => f + 1);
+  }
+
+  function listen() {
+    if (!sound) sim.current.restart = true; // hear the tune from its first note
+    setSound(!sound);
   }
 
   const s = sim.current;
@@ -178,19 +236,19 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
   const bond = Math.max(0, T.bond - s.slashes * T.slash);
   const spreadBad = spread > T.maxSpreadBps;
   const depthBad = depth < T.minDepth;
-  const justSlashed = s.slashedIn !== undefined && s.current - s.slashedIn < 2;
+  const justSlashed = s.slashedIn !== undefined && s.current - s.slashedIn < 4;
 
   const say = justSlashed
     ? { text: `Second miss in this ${T.windowBars}-bar window: ${amount(T.slash, 0)} ${T.symbol} of the bond is slashed to the issuer.`, bad: true }
     : paused
       ? { text: "Kuru has paused the market. These bars are marked G.P. and excused, so the market maker is still paid.", bad: false }
       : !quoting
-        ? { text: `No quote, no proof. Each empty bar sends its ${amount(T.perBar)} ${T.symbol} back to the issuer when it settles.`, bad: true }
+        ? { text: `No quote, no proof, no music. Each empty bar sends its ${amount(T.perBar)} ${T.symbol} back to the issuer when it settles.`, bad: true }
         : spreadBad
           ? { text: `The requote reverts: ${spread} bps is wider than the ${T.maxSpreadBps} bps in the terms, so it never counts.`, bad: true }
           : depthBad
             ? { text: `The requote reverts: ${amount(depth, 0)} ${T.symbol} a side is less than the ${amount(T.minDepth, 0)} in the terms.`, bad: true }
-            : { text: "Quoting inside the terms. Each bar is proven in the quote transaction and paid when it settles.", bad: false };
+            : { text: "Quoting inside the terms: each bar is proven in the quote transaction and paid when it settles. Widen the spread and the harmony opens.", bad: false };
 
   const spreadMax = Math.max(100, T.maxSpreadBps * 2);
   const depthMin = Math.max(500, Math.round((T.minDepth * 0.2) / 500) * 500);
@@ -200,22 +258,37 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
     <div className="rehearsal" ref={box}>
       <div className="rehearsal-head">
         <h2>Rehearsal</h2>
-        <button type="button" className="sound" aria-pressed={sound} onClick={() => setSound(!sound)}>
-          {sound ? "Sound on" : "Sound off"}
-        </button>
+        <div className="rehearsal-tools">
+          <select
+            aria-label="Melody the price follows"
+            value={pieceId}
+            onChange={(e) => {
+              setPieceId(e.target.value);
+              sim.current.restart = true;
+            }}
+          >
+            {PIECES.map((p) => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
+          <button type="button" className="sound" onClick={listen}>
+            {sound ? "Mute" : "Listen"}
+          </button>
+        </div>
       </div>
       <p className="intro">
-        You run the quoter on the live terms, at two seconds a bar instead of {T.barLength}. Nothing goes onchain; the real score is
-        below.
+        You run the quoter on the live terms, but here the price follows a melody and a bar lasts one note instead of{" "}
+        {T.barLength}. Keep quoting and the tune plays; stop and it breaks. Nothing goes onchain; the real score is below.
       </p>
 
       <Score
         bars={s.bars}
         current={BigInt(s.current)}
         settled={BigInt(s.settled)}
-        progress={clock.current / BAR_MS}
+        progress={clock.current / s.barMs}
         clawback={T.perBar}
         variant="full"
+        pitch={{ ref: REF, bpsPerStep: BPS_PER_STEP }}
         sound
       />
 

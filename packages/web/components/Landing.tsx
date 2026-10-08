@@ -101,7 +101,7 @@ export function LiveScore() {
             type="button"
             className="linkbtn"
             aria-pressed={playing}
-            title="Plays the bars on screen, one beat per bar: a chord for each proof, silence for a rest"
+            title="Plays the bars on screen once, one beat per bar: a chord for each proof, silence for a rest"
             onClick={() => (playing ? score.current?.stop() : score.current?.play())}
           >
             {playing ? "Stop" : "Play it back"}
@@ -118,7 +118,6 @@ export function LiveScore() {
         tempoMs={BLOCK_MS}
         blocksPerBar={a.terms.epochBlocks}
         variant="hero"
-        sound
         onPlaying={setPlaying}
       />
       <p className="caption">

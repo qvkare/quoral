@@ -101,24 +101,34 @@ Colour means: someone failed and money moved. Compliance is the normal state, so
 
 ## Rehearsal
 
-The hero's console, where the visitor runs the quoter on the live agreement's terms at one bar every two seconds:
-stop the quotes, widen the spread past the term, thin the depth, or let the venue pause. The outcome follows the
-contract: a requote that breaks a term reverts and proves nothing, an empty bar is a rest that is circled once
-settled, the second miss in an uptime window slashes the bond, and a pause is an excused G.P. A sentence under the
-score says what just happened, and a ruled list shows what was paid, returned and slashed. Each slider marks its term
-as a barline on the track. Nothing is sent to the chain, and the panel says so.
+The hero's console, where the visitor runs the quoter on the live agreement's terms: stop the quotes, widen the
+spread past the term, thin the depth, or let the venue pause. The outcome follows the contract: a requote that breaks
+a term reverts and proves nothing, an empty bar is a rest that is circled once settled, the second miss in an uptime
+window slashes the bond, and a pause is an excused G.P. A sentence under the score says what just happened, and a
+ruled list shows what was paid, returned and slashed. Each slider marks its term as a barline on the track. Nothing
+is sent to the chain, and the panel says so.
+
+The simulated price follows a melody, one note per bar, so a bar lasts as long as its note: Mozart's theme from
+K. 265 (Ah vous dirai-je, maman), the opening of K. 525 (Eine kleine Nachtmusik, a fourth up so it needs no sharps)
+or Beethoven's Ode to Joy, all public domain and all in C major. The ask is the melody and the bid sits the spread
+below it, so keeping the quotes up plays the tune with a harmony under it, a wider spread opens the harmony from a
+third to a fifth, and stopping the quotes breaks the tune into rests. The rehearsal fixes the scale (12.5 bps a step,
+with ledger lines beyond the staff) instead of fitting the visible range as the live score does, so the melody is
+drawn and heard exactly.
 
 ## Sound
 
 Off by default and never started without a click. The staff is read as a treble staff, so a notehead sounds the pitch
-it is drawn at (bottom line E4, top line F5): a proven bar sounds its chord, a rest is silence, and a settled miss
-makes one pencil stroke. The rehearsal's Sound toggle covers the rehearsal and new bars on the live score; Play it
-back plays the visible live bars once, one beat per bar at the tempo marking, without turning the toggle on.
+it is drawn at (bottom line E4, top line F5, ledger lines beyond): a proven bar sounds its chord on a piano voice
+with the top note leading, a rest is silence, and a settled miss makes one pencil stroke. The piano is synthesised
+from partials, with no samples to load or license. Listen in the rehearsal starts its tune from the first note; Play
+it back plays the visible live bars once, one beat per bar at the tempo marking, without turning Listen on. The live
+score never sounds by itself, so it cannot cut into the rehearsal's melody.
 
 ## Motion
 
 Only two things move. The playhead advances through the current bar, and a new chord settles into its bar (220 ms).
-The rehearsal is the same two motions at one bar every two seconds; it runs only while it is on screen, and with
+The rehearsal is the same two motions at the pace of its melody; it runs only while it is on screen, and with
 reduced motion it waits for a click. Both respect `prefers-reduced-motion`. There is no scroll motion.
 
 ## Voice

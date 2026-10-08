@@ -13,7 +13,8 @@ import { playPencil, playSteps, releaseSolo, takeSolo } from "@/lib/sound";
  *   G.P.       = general pause: the venue was paused, the epoch is excused
  * Noteheads snap to staff lines and spaces, and stems follow engraving rules (down above the middle line).
  * In a text score bars keep one width, so a young score shows empty measures ahead of the playhead and fills left to
- * right.
+ * right. Prices are fitted to the staff over the visible bars, unless `pitch` fixes the scale (the rehearsal), in which
+ * case notes beyond the staff get ledger lines.
  */
 type Variant = "hero" | "full" | "mini";
 const SPEC: Record<Variant, { g: number; minBar: number; text: boolean }> = {
@@ -34,6 +35,7 @@ export type ScoreProps = {
   blocksPerBar?: number;
   variant?: Variant;
   sound?: boolean; // sound new chords and newly settled misses as they arrive, once the visitor turned sound on
+  pitch?: { ref: number; bpsPerStep: number }; // fixed scale: `ref` sits on the middle line, each step is `bpsPerStep`
   onPlaying?: (playing: boolean) => void;
   ref?: Ref<ScoreHandle>;
 };
@@ -76,6 +78,7 @@ export function Score({
   blocksPerBar,
   variant = "hero",
   sound = false,
+  pitch,
   onPlaying,
   ref,
 }: ScoreProps) {
@@ -119,16 +122,20 @@ export function Score({
     lo -= hi * 0.001 || 1;
     hi += hi * 0.001 || 1;
   }
-  const toStep = (p: number) => Math.max(0, Math.min(8, Math.round(((p - lo) / (hi - lo)) * 8)));
-  /** Staff steps of a proven bar, keeping at least a third between the voices so the noteheads never collide. */
+  const floor = pitch ? -4 : 0;
+  const ceil = pitch ? 12 : 8;
+  const toStep = (p: number) =>
+    Math.max(floor, Math.min(ceil, Math.round(pitch ? ((p / pitch.ref - 1) * 1e4) / pitch.bpsPerStep + 4 : ((p - lo) / (hi - lo)) * 8)));
+  /** Staff steps of a proven bar. The voices stay at least a third apart so the noteheads never collide, and the upper
+   *  voice keeps its place, since in the rehearsal it carries the melody. */
   const stepsOf = (b: Bar): number[] | null => {
     if (b.status !== 1) return null;
     if (b.bid !== undefined && b.ask !== undefined) {
       let sb = toStep(b.bid);
       let sa = toStep(b.ask);
       if (sa - sb < 2) {
-        if (sb + 2 <= 8) sa = sb + 2;
-        else sb = sa - 2;
+        if (sa - 2 >= floor) sb = sa - 2;
+        else sa = sb + 2;
       }
       return [sb, sa];
     }
@@ -371,6 +378,7 @@ function Chord({ cx, g, rx, ry, stemLen, sb, sa, yOf }: { cx: number; g: number;
   const sw = Math.max(1, g * 0.09);
   return (
     <g className="fresh">
+      <Ledgers cx={cx} rx={rx} steps={[sb, sa]} yOf={yOf} />
       <ellipse className="note" cx={cx} cy={yb} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${yb})`} />
       <ellipse className="note" cx={cx} cy={ya} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${ya})`} />
       <line className="stem" strokeWidth={sw} x1={sx} x2={sx} y1={stemDown ? ya : yb} y2={stemDown ? yb + stemLen : ya - stemLen} />
@@ -384,9 +392,26 @@ function Note({ cx, g, rx, ry, stemLen, s, yOf }: { cx: number; g: number; rx: n
   const sx = stemDown ? cx - rx * 0.9 : cx + rx * 0.9;
   return (
     <g className="fresh">
+      <Ledgers cx={cx} rx={rx} steps={[s]} yOf={yOf} />
       <ellipse className="note" cx={cx} cy={y} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${y})`} />
       <line className="stem" strokeWidth={Math.max(1, g * 0.09)} x1={sx} x2={sx} y1={y} y2={stemDown ? y + stemLen : y - stemLen} />
     </g>
+  );
+}
+
+/** Short lines through or under noteheads above the top line (step 10 and up) or below the bottom line (-2 and down). */
+function Ledgers({ cx, rx, steps, yOf }: { cx: number; rx: number; steps: number[]; yOf: (s: number) => number }) {
+  const at = new Set<number>();
+  for (const s of steps) {
+    for (let l = 10; l <= s; l += 2) at.add(l);
+    for (let l = -2; l >= s; l -= 2) at.add(l);
+  }
+  return (
+    <>
+      {[...at].map((l) => (
+        <line key={l} className="ledger-line" x1={cx - rx * 1.7} x2={cx + rx * 1.7} y1={yOf(l) + 0.5} y2={yOf(l) + 0.5} />
+      ))}
+    </>
   );
 }
 
