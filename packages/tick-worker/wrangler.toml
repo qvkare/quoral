@@ -17,4 +17,6 @@ SETTLE_EVERY = "6" # one settlement per hour of 10-minute epochs
 BLOCK_MS = "302"
 FLOW_PROB = "0.08" # chance per idle tick that the taker sends a market order (about 4 an hour)
 PAUSED = "0" # "1" = report only, send nothing
+GAS_HEADROOM_BPS = "500" # 5% over the estimate; Monad bills the whole gas limit
+PRIORITY_GWEI = "0" # base fee only (100 gwei); the testnet accepts tipless transactions
 # reference price: Kuru's XAUt0-USDC book on Monad mainnet (defaults in src/tick.ts)

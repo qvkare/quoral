@@ -36,6 +36,8 @@ export type Env = {
   INITIAL_MID?: string; // fallback reference before the first proof (default 4100)
   TAKER_KEY?: string; // optional independent taker that sends market orders on idle ticks (testnet flow)
   FLOW_PROB?: string; // chance per idle tick that the taker trades (default 0.2)
+  GAS_HEADROOM_BPS?: string; // gas limit = estimate * (1 + headroom); Monad bills the limit (default 500 = 5%)
+  PRIORITY_GWEI?: string; // tip on top of the base fee (default 0; testnet blocks are not full)
 };
 
 const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
@@ -108,7 +110,9 @@ function clients(env: Env) {
   const wc = createWalletClient({ account, chain, transport: http(env.RPC_URL) });
   const taker = env.TAKER_KEY ? privateKeyToAccount(env.TAKER_KEY as Hex) : undefined;
   const tw = taker ? createWalletClient({ account: taker, chain, transport: http(env.RPC_URL) }) : undefined;
-  return { pc, wc, account, taker, tw };
+  const headroomBps = BigInt(env.GAS_HEADROOM_BPS ?? "500");
+  const tipWei = BigInt(Math.round(Number(env.PRIORITY_GWEI ?? "0") * 1e9));
+  return { pc, wc, account, taker, tw, headroomBps, tipWei };
 }
 
 type Clients = ReturnType<typeof clients>;
@@ -339,7 +343,11 @@ async function flow(c: Clients, s: Snapshot): Promise<TickResult> {
   return { epoch, action: "traded", detail: `taker sells ${amt.toFixed(2)} at ${(Number(b18) / 1e18).toFixed(2)}`, tx };
 }
 
-/** Estimate (reverts surface here with their reason), then send with a tight gas limit: Monad charges the limit. */
+/**
+ * Estimate (reverts surface here with their reason), then send with a tight gas limit and no tip: Monad bills the
+ * whole gas limit at base fee + tip, so both are pure cost. If a tipless send is ever refused, retry once with the
+ * RPC's suggested fees so the epoch is not missed.
+ */
 async function send(
   c: Clients,
   call: { address: Address; abi: readonly unknown[]; functionName: string; args?: readonly unknown[] },
@@ -347,8 +355,15 @@ async function send(
 ): Promise<Hex> {
   const account = who === "taker" ? c.taker! : c.account;
   const wallet = who === "taker" ? c.tw! : c.wc;
-  const gas = await c.pc.estimateContractGas({ ...call, account: account.address } as never);
-  return wallet.writeContract({ ...(call as object), gas: (gas * 115n) / 100n } as never);
+  const estimate = await c.pc.estimateContractGas({ ...call, account: account.address } as never);
+  const gas = (estimate * (10_000n + c.headroomBps)) / 10_000n;
+  const fees = await c.pc.estimateFeesPerGas();
+  try {
+    return await wallet.writeContract({ ...call, gas, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: c.tipWei } as never);
+  } catch (e) {
+    if (!/underpriced|priority|fee too low|tip/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    return wallet.writeContract({ ...call, gas } as never);
+  }
 }
 
 /** Read-only health for the worker's GET /: `ok` is false once the quoter falls behind, so a monitor can alert. */
