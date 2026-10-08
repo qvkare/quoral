@@ -108,19 +108,23 @@ window slashes the bond, and a pause is an excused G.P. A sentence under the sco
 ruled list shows what was paid, returned and slashed. Each slider marks its term as a barline on the track. Nothing
 is sent to the chain, and the panel says so.
 
-The simulated price follows a melody, one note per bar, so a bar lasts as long as its note: Mozart's theme from
-K. 265 (Ah vous dirai-je, maman), the opening of K. 525 (Eine kleine Nachtmusik, a fourth up so it needs no sharps)
-or Beethoven's Ode to Joy, all public domain and all in C major. The ask is the melody and the bid sits the spread
-below it, so keeping the quotes up plays the tune with a harmony under it, a wider spread opens the harmony from a
-third to a fifth, and stopping the quotes breaks the tune into rests. The rehearsal fixes the scale (12.5 bps a step,
-with ledger lines beyond the staff) instead of fitting the visible range as the live score does, so the melody is
-drawn and heard exactly.
+The simulated price follows a melody, one note per bar, so a bar lasts as long as its note. The default is the
+chorus hook of Rick Astley's Never Gonna Give You Up, and the opening of Super Mario Bros. plays on an 8-bit voice:
+both are copyrighted, kept to a few bars as a meme to catch the eye during the hackathon, and come out after it.
+The public-domain pieces stay: Mozart's theme from K. 265 (Ah vous dirai-je, maman), the opening of K. 525 (Eine
+kleine Nachtmusik, a fourth up so it needs no sharps) and Beethoven's Ode to Joy. Everything is in C major; the one
+chromatic note (Mario's A sharp) is engraved with a sharp. Rests in the music are folded into the note before,
+because a rest on this staff means a missed bar. The ask is the melody and the bid sits the spread below it, so
+keeping the quotes up plays the tune with a harmony under it, a wider spread opens the harmony from a third to a
+fifth, and stopping the quotes breaks the tune into rests. The rehearsal fixes the scale (12.5 bps a step, with
+ledger lines beyond the staff) instead of fitting the visible range as the live score does, so the melody is drawn
+and heard exactly.
 
 ## Sound
 
 Off by default and never started without a click. The staff is read as a treble staff, so a notehead sounds the pitch
 it is drawn at (bottom line E4, top line F5, ledger lines beyond): a proven bar sounds its chord on a piano voice
-with the top note leading, a rest is silence, and a settled miss makes one pencil stroke. The piano is synthesised
+(or an 8-bit square wave for the game tune) with the top note leading, a rest is silence, and a settled miss makes one pencil stroke. The piano is synthesised
 from partials, with no samples to load or license, and everything plays at 40% of full scale behind a limiter. Listen in the rehearsal starts its tune from the first note; Play
 it back plays the visible live bars once, one beat per bar at the tempo marking, without turning Listen on. The live
 score never sounds by itself, so it cannot cut into the rehearsal's melody.

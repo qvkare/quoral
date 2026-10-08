@@ -239,6 +239,7 @@ td.head { white-space: nowrap; }
 .score .multi.unsettled { fill: var(--graphite); }
 .score .barline.ahead { stroke: var(--rule-2); }
 .score .ledger-line { stroke: var(--ink); stroke-width: 1; }
+.score .acc { fill: var(--ink); font-family: var(--serif); }
 .score .circle { fill: none; stroke: var(--pencil); stroke-width: 1.4; stroke-linecap: round; }
 .score .num { fill: var(--graphite-2); font-family: var(--sans); font-size: 10.5px; }
 .score .spread { fill: var(--graphite); font-family: var(--sans); font-size: 11px; }

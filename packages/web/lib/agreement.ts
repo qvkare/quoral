@@ -37,6 +37,7 @@ export type Bar = {
   bidDepth?: bigint;
   askDepth?: bigint;
   block?: bigint;
+  acc?: number; // rehearsal only: an accidental on the upper note, in semitones (1 sharp, -1 flat)
 };
 
 export async function loadAgreement(vault: Address, stripLen = 96, barsLen = 0) {

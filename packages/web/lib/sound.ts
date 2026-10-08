@@ -103,13 +103,41 @@ function ready(owner?: symbol) {
   return c && bus ? c : null;
 }
 
-/** A chord from staff steps, `at` seconds from now. The highest note is the melody and is played a little louder. */
-export function playSteps(steps: number[], at = 0, owner?: symbol) {
+export type Voice = "piano" | "chip";
+
+/** A chord from staff steps, `at` seconds from now. The highest note is the melody: it is played a little louder and
+ *  carries the accidental `acc` (in semitones). */
+export function playSteps(steps: number[], { at = 0, owner, acc = 0, voice = "piano" }: { at?: number; owner?: symbol; acc?: number; voice?: Voice } = {}) {
   const c = ready(owner);
   if (!c || !bus) return;
   const t = c.currentTime + 0.02 + at;
   const top = Math.max(...steps);
-  for (const s of steps) piano(c, bus, stepMidi(s), t, s === top ? 0.17 : 0.1);
+  for (const s of steps) {
+    const midi = stepMidi(s) + (s === top ? acc : 0);
+    if (voice === "chip") chip(c, bus, midi, t, s === top ? 0.11 : 0.06);
+    else piano(c, bus, midi, t, s === top ? 0.17 : 0.1);
+  }
+}
+
+/** An 8-bit voice: a square wave with a short, flat envelope, like a game console's pulse channel. */
+function chip(c: AudioContext, out: AudioNode, midi: number, t: number, level: number) {
+  const len = 0.22;
+  const o = c.createOscillator();
+  o.type = "square";
+  o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(level, t + 0.004);
+  g.gain.setValueAtTime(level, t + len * 0.55);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 5200;
+  o.connect(g);
+  g.connect(lp);
+  lp.connect(out);
+  o.start(t);
+  o.stop(t + len + 0.02);
 }
 
 // relative strength of the partials of a struck string, fundamental first

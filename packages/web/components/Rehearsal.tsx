@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Bar } from "@/lib/agreement";
-import { setSound, useSound } from "@/lib/sound";
+import { setSound, useSound, type Voice } from "@/lib/sound";
 import { Score } from "./Score";
 
 /**
@@ -38,31 +38,51 @@ export const DEFAULT_TERMS: SimTerms = {
   barLength: "10 min",
 };
 
-/** A melody as [staff step, beats]: step 0 is E4 on the bottom line, 5 is C5, 10 is A5 on the first ledger line. */
-type Piece = { id: string; title: string; beatMs: number; notes: [number, number][] };
+/** A melody as [staff step, beats, accidental?]: step 0 is E4 on the bottom line, 5 is C5, 10 is A5 on the first
+ *  ledger line; the accidental is in semitones (1 sharp, -1 flat). Rests in the music are folded into the note before,
+ *  since a rest on this staff means a missed bar. */
+type Note = [number, number, number?];
+type Piece = { id: string; title: string; beatMs: number; voice: Voice; notes: Note[] };
 
-// Public-domain melodies, all in C major so every note is a white key on the staff.
-const TWINKLE_A: [number, number][] = [[5, 1], [5, 1], [9, 1], [9, 1], [10, 1], [10, 1], [9, 2]];
-const TWINKLE_B: [number, number][] = [[8, 1], [8, 1], [7, 1], [7, 1], [6, 1], [6, 1], [5, 2]];
-const TWINKLE_C: [number, number][] = [[9, 1], [9, 1], [8, 1], [8, 1], [7, 1], [7, 1], [6, 2]];
-const JOY: [number, number][] = [[7, 1], [7, 1], [8, 1], [9, 1], [9, 1], [8, 1], [7, 1], [6, 1], [5, 1], [5, 1], [6, 1], [7, 1]];
+// The two meme hooks are copyrighted (Stock Aitken Waterman 1987, Koji Kondo 1985). They are short on purpose and
+// come out after the hackathon; the rest is public domain. Everything is in C major so it fits the white-key staff.
+const NEVER_A: Note[] = [[2, 0.25], [3, 0.25], [5, 0.25], [3, 0.25]];
+const RICK: Note[] = [
+  ...NEVER_A, [7, 0.75], [7, 0.75], [6, 1.5],
+  ...NEVER_A, [6, 0.75], [6, 0.75], [5, 0.75], [4, 0.25], [3, 0.5],
+  ...NEVER_A, [5, 1], [6, 0.5], [4, 0.75], [3, 0.25], [2, 1], [6, 1], [5, 2.5],
+];
+const MARIO: Note[] = [
+  [7, 0.5], [7, 1], [7, 1], [5, 0.5], [7, 1], [9, 2], [2, 2],
+  [5, 1.5], [2, 1.5], [0, 1.5], [3, 1], [4, 1], [3, 0.5, 1], [3, 1],
+  [2, 2 / 3], [7, 2 / 3], [9, 2 / 3], [10, 1], [8, 0.5], [9, 1], [7, 1], [5, 0.5], [6, 0.5], [4, 1.5],
+];
+const TWINKLE_A: Note[] = [[5, 1], [5, 1], [9, 1], [9, 1], [10, 1], [10, 1], [9, 2]];
+const TWINKLE_B: Note[] = [[8, 1], [8, 1], [7, 1], [7, 1], [6, 1], [6, 1], [5, 2]];
+const TWINKLE_C: Note[] = [[9, 1], [9, 1], [8, 1], [8, 1], [7, 1], [7, 1], [6, 2]];
+const JOY: Note[] = [[7, 1], [7, 1], [8, 1], [9, 1], [9, 1], [8, 1], [7, 1], [6, 1], [5, 1], [5, 1], [6, 1], [7, 1]];
 const PIECES: Piece[] = [
+  { id: "rick", title: "Rick Astley: Never Gonna Give You Up", beatMs: 560, voice: "piano", notes: RICK },
+  { id: "mario", title: "Koji Kondo: Super Mario Bros.", beatMs: 380, voice: "chip", notes: MARIO },
   {
     id: "k265",
     title: "Mozart: Ah vous dirai-je, maman",
     beatMs: 620,
+    voice: "piano",
     notes: [...TWINKLE_A, ...TWINKLE_B, ...TWINKLE_C, ...TWINKLE_C, ...TWINKLE_A, ...TWINKLE_B],
   },
   {
     id: "k525",
     title: "Mozart: Eine kleine Nachtmusik",
     beatMs: 540, // the opening, a fourth up from G so it needs no sharps
+    voice: "piano",
     notes: [[5, 1.5], [2, 0.5], [5, 1.5], [2, 0.5], [5, 0.5], [2, 0.5], [5, 0.5], [7, 0.5], [9, 2], [8, 1.5], [6, 0.5], [8, 1.5], [6, 0.5], [8, 0.5], [6, 0.5], [4, 0.5], [6, 0.5], [2, 2]],
   },
   {
     id: "joy",
     title: "Beethoven: Ode to Joy",
     beatMs: 600,
+    voice: "piano",
     notes: [...JOY, [7, 1.5], [6, 0.5], [6, 2], ...JOY, [6, 1.5], [5, 0.5], [5, 2]],
   },
 ];
@@ -84,10 +104,11 @@ type Sim = {
   barMs: number; // length of this bar: its note's length
   restart: boolean; // start the piece over at the next bar
   tick: number; // last quoter tick tried in the current bar
+  time: number; // ms of rehearsal played
   paid: number; // settled bars paid to the market maker (quoted or excused)
   returned: number; // settled bars without a quote
   slashes: number;
-  slashedIn?: number; // bar in which the last slash happened
+  slashedAt?: number; // rehearsal time of the last slash
   misses: Record<number, number>; // per uptime window
 };
 
@@ -99,6 +120,7 @@ const fresh = (p: Piece): Sim => ({
   barMs: p.notes[0][1] * p.beatMs,
   restart: false,
   tick: -1,
+  time: 0,
   paid: 0,
   returned: 0,
   slashes: 0,
@@ -160,6 +182,7 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
   function advance(s: Sim, dt: number) {
     const { T: terms, piece: p } = controls.current;
     clock.current += dt;
+    s.time += dt;
     const progress = clock.current / s.barMs;
     while (s.tick + 1 < TICKS.length && progress >= TICKS[s.tick + 1]) {
       s.tick++;
@@ -185,8 +208,9 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
     let next: Bar | undefined;
     if (ps) next = { epoch: bar.epoch, status: 2 }; // anyone may flag the pause; the bar is excused
     else if (q && sp <= terms.maxSpreadBps && d >= terms.minDepth) {
-      const ask = priceOf(p.notes[s.note % p.notes.length][0]);
-      next = { epoch: bar.epoch, status: 1, bid: ask * (1 - sp / 1e4), ask, spreadBps: sp };
+      const [step, , acc] = p.notes[s.note % p.notes.length];
+      const ask = priceOf(step);
+      next = { epoch: bar.epoch, status: 1, bid: ask * (1 - sp / 1e4), ask, spreadBps: sp, acc };
     }
     if (next) s.bars = [...s.bars.slice(0, -1), next];
   }
@@ -206,7 +230,7 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
       s.misses[w] = (s.misses[w] ?? 0) + 1;
       if (s.misses[w] === terms.allowedMisses + 1) {
         s.slashes++;
-        s.slashedIn = s.current;
+        s.slashedAt = s.time;
       }
     }
     s.settled = s.current;
@@ -236,7 +260,7 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
   const bond = Math.max(0, T.bond - s.slashes * T.slash);
   const spreadBad = spread > T.maxSpreadBps;
   const depthBad = depth < T.minDepth;
-  const justSlashed = s.slashedIn !== undefined && s.current - s.slashedIn < 4;
+  const justSlashed = s.slashedAt !== undefined && s.time - s.slashedAt < 2500;
 
   const say = justSlashed
     ? { text: `Second miss in this ${T.windowBars}-bar window: ${amount(T.slash, 0)} ${T.symbol} of the bond is slashed to the issuer.`, bad: true }
@@ -289,6 +313,7 @@ export function Rehearsal({ terms: T = DEFAULT_TERMS }: { terms?: SimTerms }) {
         clawback={T.perBar}
         variant="full"
         pitch={{ ref: REF, bpsPerStep: BPS_PER_STEP }}
+        voice={piece.voice}
         sound
       />
 

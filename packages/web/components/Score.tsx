@@ -2,7 +2,7 @@
 
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import type { Bar } from "@/lib/agreement";
-import { playPencil, playSteps, releaseSolo, takeSolo } from "@/lib/sound";
+import { playPencil, playSteps, releaseSolo, takeSolo, type Voice } from "@/lib/sound";
 
 /**
  * The agreement drawn as a choir part (see DESIGN.md).
@@ -36,6 +36,7 @@ export type ScoreProps = {
   variant?: Variant;
   sound?: boolean; // sound new chords and newly settled misses as they arrive, once the visitor turned sound on
   pitch?: { ref: number; bpsPerStep: number }; // fixed scale: `ref` sits on the middle line, each step is `bpsPerStep`
+  voice?: Voice;
   onPlaying?: (playing: boolean) => void;
   ref?: Ref<ScoreHandle>;
 };
@@ -79,6 +80,7 @@ export function Score({
   variant = "hero",
   sound = false,
   pitch,
+  voice = "piano",
   onPlaying,
   ref,
 }: ScoreProps) {
@@ -148,8 +150,8 @@ export function Score({
   const isMiss = (b: Bar) => b.status !== 1 && b.status !== 2 && b.epoch < current;
 
   // ---------------------------------------------------------------- sound
-  const latest = useRef({ visible, stepsOf, settled, current, tempoMs, onPlaying });
-  latest.current = { visible, stepsOf, settled, current, tempoMs, onPlaying };
+  const latest = useRef({ visible, stepsOf, settled, current, tempoMs, onPlaying, voice });
+  latest.current = { visible, stepsOf, settled, current, tempoMs, onPlaying, voice };
 
   // new chords and newly circled rests, as they arrive (never the history on first load)
   const seen = useRef<{ map: Map<string, string>; last: bigint; current: bigint } | null>(null);
@@ -157,20 +159,20 @@ export function Score({
     const prev = seen.current;
     const reset = !prev || current < prev.current;
     const map = reset ? new Map<string, string>() : prev.map;
-    const events: number[][] = [];
+    const events: { steps: number[]; acc?: number }[] = [];
     for (const b of bars) {
       const k = b.epoch.toString();
       const st = b.status === 1 ? "q" : b.status === 2 ? "p" : isMiss(b) && b.epoch < settled ? "m" : "-";
       const before = map.get(k);
       if (!reset && st !== before && (before !== undefined || b.epoch > prev.last)) {
-        if (st === "q") events.push(latest.current.stepsOf(b) ?? []);
-        if (st === "m") events.push([]);
+        if (st === "q") events.push({ steps: latest.current.stepsOf(b) ?? [], acc: b.acc });
+        if (st === "m") events.push({ steps: [] });
       }
       map.set(k, st);
     }
     seen.current = { map, last: bars.length ? bars[bars.length - 1].epoch : -1n, current };
     if (!sound) return;
-    events.slice(-4).forEach((steps, i) => (steps.length ? playSteps(steps, i * 0.16) : playPencil(i * 0.16)));
+    events.slice(-4).forEach((e, i) => (e.steps.length ? playSteps(e.steps, { at: i * 0.16, acc: e.acc, voice }) : playPencil(i * 0.16)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bars, settled, current, sound]);
 
@@ -190,7 +192,7 @@ export function Score({
     stop();
     const token = takeSolo();
     solo.current = token;
-    const { visible: v, stepsOf: steps, settled: s, tempoMs: tm } = latest.current;
+    const { visible: v, stepsOf: steps, settled: s, tempoMs: tm, voice: vc } = latest.current;
     const beat = Math.max(240, Math.min(600, tm ?? 300));
     let t = 0;
     v.forEach((it) => {
@@ -201,7 +203,7 @@ export function Score({
             if (it.final) playPencil(0, token);
           } else {
             const st = steps(it.bar);
-            if (st) playSteps(st, 0, token);
+            if (st) playSteps(st, { owner: token, acc: it.bar.acc, voice: vc });
             else if (isMiss(it.bar) && it.bar.epoch < s) playPencil(0, token);
           }
         }, t),
@@ -312,7 +314,7 @@ export function Score({
                   </text>
                 )}
 
-                {steps?.length === 2 && <Chord key={`c${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} sb={steps[0]} sa={steps[1]} yOf={yOf} />}
+                {steps?.length === 2 && <Chord key={`c${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} sb={steps[0]} sa={steps[1]} acc={b.acc} yOf={yOf} />}
                 {/* one voice: the other side's inventory was used up and the vault posted all it had */}
                 {steps?.length === 1 && <Note key={`n${b.epoch}`} cx={cx} g={g} rx={rx} ry={ry} stemLen={stemLen} s={steps[0]} yOf={yOf} />}
 
@@ -370,7 +372,7 @@ export function Score({
   );
 }
 
-function Chord({ cx, g, rx, ry, stemLen, sb, sa, yOf }: { cx: number; g: number; rx: number; ry: number; stemLen: number; sb: number; sa: number; yOf: (s: number) => number }) {
+function Chord({ cx, g, rx, ry, stemLen, sb, sa, acc, yOf }: { cx: number; g: number; rx: number; ry: number; stemLen: number; sb: number; sa: number; acc?: number; yOf: (s: number) => number }) {
   const yb = yOf(sb);
   const ya = yOf(sa);
   const stemDown = (sa + sb) / 2 >= 4; // engraving rule: above the middle line, stems go down
@@ -379,6 +381,11 @@ function Chord({ cx, g, rx, ry, stemLen, sb, sa, yOf }: { cx: number; g: number;
   return (
     <g className="fresh">
       <Ledgers cx={cx} rx={rx} steps={[sb, sa]} yOf={yOf} />
+      {acc ? (
+        <text className="acc" x={cx - rx * 2.1} y={ya + g * 0.45} textAnchor="middle" style={{ fontSize: g * 1.5 }}>
+          {acc > 0 ? "\u266f" : "\u266d"}
+        </text>
+      ) : null}
       <ellipse className="note" cx={cx} cy={yb} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${yb})`} />
       <ellipse className="note" cx={cx} cy={ya} rx={rx} ry={ry} transform={`rotate(-20 ${cx} ${ya})`} />
       <line className="stem" strokeWidth={sw} x1={sx} x2={sx} y1={stemDown ? ya : yb} y2={stemDown ? yb + stemLen : ya - stemLen} />
