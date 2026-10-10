@@ -258,7 +258,7 @@ td.head { white-space: nowrap; }
 /* ---------------------------------------------------------------- landing */
 .hero { padding: 56px 0 36px; }
 .display { font-size: clamp(42px, 7vw, 92px); font-weight: 300; letter-spacing: -0.045em; line-height: 0.98; margin: 0 0 26px; max-width: 13ch; }
-.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
 .hero .display { font-size: clamp(42px, 5.4vw, 74px); }
 @media (max-width: 1060px) {
   .hero-grid { grid-template-columns: 1fr; gap: 40px; }
