@@ -38,6 +38,17 @@ export const explorerAddr = (a: string) =>
 
 export const short = (a?: string) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "n/a");
 
+/**
+ * Operator keys that are Privy server wallets under the Quoral operator policy (packages/bot/privy-policy.json).
+ * Privy holds the key and signs only the agreement's five calls; the worker broadcasts.
+ */
+const PRIVY_OPERATORS = (process.env.NEXT_PUBLIC_PRIVY_OPERATORS ?? (CHAIN_ID === 10143 ? "0x08079Db1a87c67dcD288300A5ef612a9d4502812" : ""))
+  .split(",")
+  .map((a) => a.trim().toLowerCase())
+  .filter(Boolean);
+export const isPrivyOperator = (a?: string | null) => Boolean(a && PRIVY_OPERATORS.includes(a.toLowerCase()));
+export const POLICY_URL = "https://github.com/qvkare/quoral/blob/main/packages/bot/privy-policy.json";
+
 export function fmt(v: bigint | undefined, decimals: number, dp = 2) {
   if (v === undefined) return "n/a";
   const n = Number(formatUnits(v, decimals));

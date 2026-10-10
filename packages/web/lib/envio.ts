@@ -1,4 +1,4 @@
-import { ENVIO_URL, fmt, short } from "./chain";
+import { ENVIO_URL, fmt, isPrivyOperator, short } from "./chain";
 import type { AgreementView } from "./agreement";
 
 export type LogRow = { block: bigint; tx?: string; when?: string; text: string; pencil?: boolean };
@@ -64,7 +64,7 @@ function describe(a: AgreementView, e: Ev): { text: string; pencil?: boolean } {
     case "NOTICE":
       return { text: `Notice given (${e.detail ?? ""}).` };
     case "OPERATOR":
-      return { text: `Operator key replaced by both parties: now ${short(e.detail ?? "")}.` };
+      return { text: `Operator key replaced by both parties: now ${short(e.detail ?? "")}${isPrivyOperator(e.detail) ? ", a policy-locked Privy server wallet" : ""}.` };
     case "WITHDRAW":
       return { text: "Inventory returned to the issuer." };
     case "FINALIZED":

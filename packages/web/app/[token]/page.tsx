@@ -6,7 +6,7 @@ import { decodeEventLog, formatUnits, type Address } from "viem";
 import { heartbeatAbi, paystreamAbi, inventoryVaultAbi } from "@quoral/shared";
 import { usePoll } from "@/lib/hooks";
 import { loadAgreement, resolveAgreement, type AgreementView } from "@/lib/agreement";
-import { publicClient, fmt, short, blocksToDuration, isAddress, explorerAddr, explorerTx, BLOCK_MS, ENVIO_URL, VENUE } from "@/lib/chain";
+import { publicClient, fmt, short, blocksToDuration, isAddress, explorerAddr, explorerTx, isPrivyOperator, BLOCK_MS, ENVIO_URL, POLICY_URL, VENUE } from "@/lib/chain";
 import { Ledger, StatusPill, Skeleton } from "@/components/ui";
 import { Score } from "@/components/Score";
 import { envioRows } from "@/lib/envio";
@@ -182,7 +182,20 @@ function Terms({ vault }: { vault: Address }) {
             <dt>Market maker</dt>
             <dd className="mono">{addr(a.mm)} {a.disclosure.mmAttested && <span className="muted">attested</span>}</dd>
             <dt>Operator key</dt>
-            <dd className="mono">{addr(a.operator)}</dd>
+            <dd>
+              <span className="mono">{addr(a.operator)}</span>
+              {isPrivyOperator(a.operator) && <span className="muted"> Privy server wallet, policy-locked</span>}
+            </dd>
+            {isPrivyOperator(a.operator) && (
+              <>
+                <dt>Operator policy</dt>
+                <dd>
+                  Privy holds the key and signs only five calls: requote, cancel and finalize on this vault, and checkEpoch and
+                  flagPause on its heartbeat, with no value, on this chain. It refuses everything else before signing,
+                  including messages. <a href={POLICY_URL} target="_blank" rel="noreferrer">Read the policy</a>
+                </dd>
+              </>
+            )}
             <dt>Terms hash</dt>
             <dd className="addr">{a.disclosure.termsHash}</dd>
             <dt>Terms document</dt>
@@ -276,7 +289,10 @@ function Activity({ a }: { a: AgreementView }) {
       for (const l of vlt) {
         const e = dec(inventoryVaultAbi, l);
         if (e?.eventName === "NoticeGiven") push(l, `Notice given by ${short(e.args.by as string)}. The agreement ends at block ${e.args.newEndBlock}.`);
-        if (e?.eventName === "OperatorChanged") push(l, `Operator key replaced by both parties: now ${short(e.args.newOperator as string)}.`);
+        if (e?.eventName === "OperatorChanged") {
+          const op = e.args.newOperator as string;
+          push(l, `Operator key replaced by both parties: now ${short(op)}${isPrivyOperator(op) ? ", a policy-locked Privy server wallet" : ""}.`);
+        }
         if (e?.eventName === "Finalized") push(l, "Agreement finalized.");
         if (e?.eventName === "InventoryWithdrawn") push(l, "Inventory returned to the issuer.");
         if (e?.eventName === "InventoryLimited")

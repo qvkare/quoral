@@ -25,3 +25,7 @@ PRIVY_APP_ID = "cmv2fsvbe01c20fldrow91ijh"
 PRIVY_WALLET_ID = "wfp0vpb0of3iswwpdp0a6xvy"
 PRIVY_ADDRESS = "0x08079Db1a87c67dcD288300A5ef612a9d4502812"
 # reference price: Kuru's XAUt0-USDC book on Monad mainnet (defaults in src/tick.ts)
+
+# keep the tick logs (Workers Logs), so a run of failed ticks can be explained afterwards
+[observability]
+enabled = true
