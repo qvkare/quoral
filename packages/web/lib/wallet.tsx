@@ -25,9 +25,16 @@ import { toViemAccount } from "@category-labs/mera/viem";
 import { chain, RPC_URL, CHAIN_ID, publicClient } from "./chain";
 
 type Kind = "passkey" | "injected" | "demo";
+/** The three keys one passkey derives: the issuer's, the market maker's and the market maker's operator (quoting) key. */
+export type Role = "issuer" | "mm" | "operator";
+export const ROLES: Role[] = ["issuer", "mm", "operator"];
+export const ROLE_LABEL: Record<Role, string> = { issuer: "Issuer", mm: "Market maker", operator: "Operator" };
 type Wallet = {
   kind?: Kind;
   address?: Address;
+  /** passkey only: which derived key signs right now, and the address of each */
+  role?: Role;
+  roles?: Record<Role, Address>;
   client?: WalletClient;
   account?: Account | Address;
   connecting: boolean;
@@ -38,6 +45,8 @@ type Wallet = {
   connectPasskey(): Promise<void>;
   connectInjected(): Promise<void>;
   connectDemo(index: number): void;
+  /** passkey only: sign with another of the passkey's keys, without a new prompt */
+  switchRole(role: Role): void;
   disconnect(): void;
   send(fn: (c: WalletClient, account: Account | Address) => Promise<Hash>): Promise<Hash>;
 };
@@ -55,8 +64,13 @@ export const DEMO_KEYS: { label: string; key: `0x${string}` }[] = [
   { label: "MM C (anvil #3)", key: "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6" },
 ];
 
-/** App-side derivation: the passkey PRF output is the seed; mera keeps the key in a zeroizable session. */
-const deriveKey = (prf: Uint8Array) => keccak256(concat([toBytes("quoral.evm.v1"), prf]), "bytes");
+/**
+ * App-side derivation: the passkey PRF output is the seed of every key, each under its own label, and mera keeps
+ * each key in a zeroizable session. The issuer key keeps the original label, so earlier passkey accounts keep
+ * their address.
+ */
+const LABEL: Record<Role, string> = { issuer: "quoral.evm.v1", mm: "quoral.evm.v1/mm", operator: "quoral.evm.v1/operator" };
+const deriveKey = (prf: Uint8Array, role: Role) => keccak256(concat([toBytes(LABEL[role]), prf]), "bytes");
 
 const ls = {
   get: (k: string) => {
@@ -74,11 +88,12 @@ const ls = {
 };
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Omit<Wallet, "createPasskey" | "connectPasskey" | "connectInjected" | "connectDemo" | "disconnect" | "send">>({
+  const [state, setState] = useState<Omit<Wallet, "createPasskey" | "connectPasskey" | "connectInjected" | "connectDemo" | "switchRole" | "disconnect" | "send">>({
     connecting: false,
   });
   const startedAt = useRef<number | undefined>(undefined);
   const endSession = useRef<(() => void) | undefined>(undefined);
+  const roleAccounts = useRef<Partial<Record<Role, Account>>>({});
 
   useEffect(() => {
     const t = ls.get(LS_TTFT);
@@ -92,21 +107,39 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch {}
   };
 
-  const fromAccount = useCallback((kind: Kind, account: Account) => {
+  const fromAccount = useCallback((kind: Kind, account: Account, roles?: Record<Role, Address>, role?: Role) => {
     const client = createWalletClient({ account, chain, transport: http(RPC_URL) });
-    setState((s) => ({ ...s, kind, address: account.address, client, account, connecting: false, error: undefined }));
+    setState((s) => ({ ...s, kind, address: account.address, client, account, roles, role, connecting: false, error: undefined }));
   }, []);
 
   const fail = (e: unknown) => setState((s) => ({ ...s, connecting: false, error: (e as Error).message }));
 
+  // One prompt, three keys: each derived key lives in its own mera session, and signing out ends all of them.
   const sessionFromPrf = useCallback(
     (prf: Uint8Array) => {
       endSession.current?.();
-      const session = createSecp256k1SigningSession({ privateKey: deriveKey(prf) });
-      endSession.current = () => session.end();
-      fromAccount("passkey", toViemAccount(session));
+      const sessions = ROLES.map((role) => {
+        const key = deriveKey(prf, role);
+        const session = createSecp256k1SigningSession({ privateKey: key });
+        key.fill(0);
+        return [role, session] as const;
+      });
+      prf.fill(0);
+      endSession.current = () => sessions.forEach(([, s]) => s.end());
+      roleAccounts.current = Object.fromEntries(sessions.map(([role, s]) => [role, toViemAccount(s)]));
+      const roles = Object.fromEntries(ROLES.map((r) => [r, roleAccounts.current[r]!.address])) as Record<Role, Address>;
+      fromAccount("passkey", roleAccounts.current.issuer!, roles, "issuer");
     },
     [fromAccount],
+  );
+
+  const switchRole = useCallback(
+    (role: Role) => {
+      const account = roleAccounts.current[role];
+      if (!account || state.kind !== "passkey") return;
+      fromAccount("passkey", account, state.roles, role);
+    },
+    [fromAccount, state.kind, state.roles],
   );
 
   const createPasskey = useCallback(
@@ -189,6 +222,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const disconnect = useCallback(() => {
     endSession.current?.();
     endSession.current = undefined;
+    roleAccounts.current = {};
     remember(null);
     setState((s) => ({ connecting: false, timeToFirstTx: s.timeToFirstTx }));
   }, []);
@@ -210,8 +244,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<Wallet>(
-    () => ({ ...state, createPasskey, connectPasskey, connectInjected, connectDemo, disconnect, send }),
-    [state, createPasskey, connectPasskey, connectInjected, connectDemo, disconnect, send],
+    () => ({ ...state, createPasskey, connectPasskey, connectInjected, connectDemo, switchRole, disconnect, send }),
+    [state, createPasskey, connectPasskey, connectInjected, connectDemo, switchRole, disconnect, send],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

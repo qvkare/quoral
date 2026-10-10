@@ -11,6 +11,7 @@ import { listAgreements, listRFQs, loadAgreement, token, type TokenInfo } from "
 import { write, ensureAllowance, settleAll, DAY_MS } from "@/lib/actions";
 import { TxButton, PageHead, StatusPill } from "@/components/ui";
 import { Faucet } from "@/components/Faucet";
+import { RoleHint } from "@/components/RoleHint";
 
 const LOCAL = BLOCK_MS >= 1000;
 const DEFAULTS = {
@@ -154,6 +155,7 @@ export default function IssuerConsole() {
         {!w.address && (
           <div className="notice">Sign in with a passkey or wallet (top right) to open RFQs and manage agreements. You can explore the form without signing in.</div>
         )}
+        <RoleHint role="issuer" />
 
         <div className="split">
           <div className="card pad-lg stack" style={{ gap: 26 }}>

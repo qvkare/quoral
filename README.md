@@ -115,7 +115,7 @@ adds 15% rather than forge's default 30%.
 | `packages/tick-worker` | Cloudflare Worker for the testnet demo: house quoter tracking Kuru mainnet, keeper, an independent taker, health check |
 | `cre/quoral-keeper` | Chainlink CRE workflow (cron → EVM read → signed report → `CREKeeperReceiver`), with a `local-simulation` target for Monad testnet |
 | `packages/indexer` | Envio HyperIndex on the testnet demo (`config.local.yaml` for anvil): factory-driven registration of vault/heartbeat/paystream, RFQs, bonds, Kuru fills, every proof with its hash |
-| `packages/web` | Next.js 15: landing page with a rehearsal console (run the quoter on the live terms: stop the quotes, widen the spread, thin the depth, pause the venue, and watch the clawbacks and the slash), agreements explorer, issuer console (validated SLA form and cost summary), MM console, public `/<token>` terms page, `/badge/<agreement>` SVG; Mera passkey sign-in with time-to-first-tx. Design: the live agreement is drawn as a musical score (one bar per epoch, a chord per proven quote, a red-pencil rest per clawed-back epoch, a multirest for a run of them) that can be played back, pitched as a treble staff; see [`packages/web/DESIGN.md`](packages/web/DESIGN.md) |
+| `packages/web` | Next.js 15: landing page with a rehearsal console (run the quoter on the live terms: stop the quotes, widen the spread, thin the depth, pause the venue, and watch the clawbacks and the slash), agreements explorer, issuer console (validated SLA form and cost summary), MM console, public `/<token>` terms page, `/badge/<agreement>` SVG; Mera passkey sign-in (one passkey, three role keys) with time-to-first-tx. Design: the live agreement is drawn as a musical score (one bar per epoch, a chord per proven quote, a red-pencil rest per clawed-back epoch, a multirest for a run of them) that can be played back, pitched as a treble staff; see [`packages/web/DESIGN.md`](packages/web/DESIGN.md) |
 
 ## Quickstart (local, ~2 min)
 
@@ -219,6 +219,21 @@ CHAIN_ID=10143 AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filt
 PRIVY_ADDRESS=0x… pnpm --filter @quoral/bot privy:rotate
 ```
 
+## Passkeys: one passkey, three keys
+
+The web app signs in with a passkey through Mera. One user-verification prompt returns the passkey's PRF output, and
+the app derives three secp256k1 keys from it, each under its own label: `keccak256(label ‖ prf)` with
+`quoral.evm.v1` for the issuer, `quoral.evm.v1/mm` for the market maker and `quoral.evm.v1/operator` for the market
+maker's quoting key. Each key goes into its own Mera signing session, and the derived bytes and the PRF output are
+zeroed right after (Mera keeps its own copy). Signing out ends all three sessions.
+
+The sign-in menu lists the three addresses and switches between them without another prompt; the issuer and market
+maker consoles offer the right key when another one is active. When a market maker bids for a seat, the operator
+field defaults to the passkey's operator key, so the identity that holds the bond and the key that quotes from the
+vault are different keys from the same passkey. The issuer key keeps the original label, so passkey accounts created
+before this change keep their address. The PRF output is a function of the credential, the site and the salt, so the
+same passkey gives the same three addresses on every device it syncs to.
+
 ## Design decisions & honest limits
 
 - **Excused epochs are paid**, as force majeure. They only come from venue pauses (`marketState != ACTIVE`, or a MarginAccount protocol pause), flagged permissionlessly during the epoch.
@@ -239,7 +254,7 @@ PRIVY_ADDRESS=0x… pnpm --filter @quoral/bot privy:rotate
 - **Envio**: HyperIndex behind the Terms page history.
 - **Chainlink CRE**: epoch keeper workflow plus onchain receiver.
 - **Privy**: the live testnet operator is a policy-locked server wallet; Privy signs only the agreement's five calls.
-- **Mera**: passkey sign-in (`@category-labs/mera`, PRF → app-side key → zeroizable session), with time-to-first-tx shown in the UI.
+- **Mera**: one passkey, three keys. One user-verification prompt derives the issuer, market maker and operator keys (`@category-labs/mera`, PRF → labelled app-side keys → one zeroizable session each), with time-to-first-tx shown in the UI. See [Passkeys](#passkeys-one-passkey-three-keys).
 
 ## Submission checklist
 

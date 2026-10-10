@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useWallet, DEMO_KEYS } from "@/lib/wallet";
+import { useWallet, DEMO_KEYS, ROLES, ROLE_LABEL } from "@/lib/wallet";
 import { CHAIN_ID, chain, short } from "@/lib/chain";
 import { LogoMark } from "./Logo";
 
@@ -86,6 +86,7 @@ function WalletButton() {
     return (
       <div className="menu" ref={ref}>
         <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
+          {w.role && <span className="muted">{ROLE_LABEL[w.role]}</span>}
           <span className="mono">{short(w.address)}</span>
         </button>
         {open && (
@@ -93,8 +94,29 @@ function WalletButton() {
             <div className="small muted">
               Signed in with {w.kind === "passkey" ? "a passkey (Mera)" : w.kind === "demo" ? "a local demo account" : "a browser wallet"}
             </div>
-            <div className="addr small">{w.address}</div>
-            <button onClick={() => navigator.clipboard?.writeText(w.address!)}>Copy address</button>
+            {w.roles ? (
+              <div className="stack" style={{ gap: 6 }}>
+                <div className="small" style={{ fontWeight: 600 }}>One passkey, three keys</div>
+                {ROLES.map((r) => (
+                  <button
+                    key={r}
+                    className={`role ${w.role === r ? "on" : ""}`}
+                    aria-pressed={w.role === r}
+                    onClick={() => w.switchRole(r)}
+                  >
+                    <span>{ROLE_LABEL[r]}</span>
+                    <span className="mono">{short(w.roles![r])}</span>
+                  </button>
+                ))}
+                <div className="tiny muted">
+                  Each role signs with its own key, derived from the same passkey prompt. Switching needs no new prompt; the
+                  operator key is the one to give the vault for quoting.
+                </div>
+              </div>
+            ) : (
+              <div className="addr small">{w.address}</div>
+            )}
+            <button onClick={() => navigator.clipboard?.writeText(w.address!)}>Copy {w.role ? `${ROLE_LABEL[w.role].toLowerCase()} ` : ""}address</button>
             {w.timeToFirstTx !== undefined && (
               <div className="small">
                 First transaction confirmed {(w.timeToFirstTx / 1000).toFixed(1)} s after sign-in.
@@ -145,7 +167,8 @@ function WalletButton() {
           )}
           {w.error && <div className="err">{w.error}</div>}
           <div className="tiny muted" style={{ marginTop: 2 }}>
-            Passkeys by Mera. The signing key is derived from your passkey and wiped when you sign out.
+            Passkeys by Mera. One prompt derives your issuer, market maker and operator keys; all three are wiped when
+            you sign out.
           </div>
         </div>
       )}

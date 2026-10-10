@@ -11,6 +11,7 @@ import { listAgreements, listRFQs, loadAgreement, token } from "@/lib/agreement"
 import { write, ensureAllowance, settleAll, DAY_MS } from "@/lib/actions";
 import { TxButton, PageHead, StatusPill, Ledger } from "@/components/ui";
 import { Faucet } from "@/components/Faucet";
+import { RoleHint } from "@/components/RoleHint";
 
 export default function MMConsole() {
   const w = useWallet();
@@ -57,6 +58,7 @@ export default function MMConsole() {
       {!w.address && (
         <div className="notice">Sign in to deposit a bond and bid. On the local demo, pick MM A, B or C in the sign-in menu.</div>
       )}
+      <RoleHint role="mm" />
 
       <Ledger
         items={[
@@ -180,7 +182,13 @@ function RFQCard({ r, block, me, onDone }: { r: R; block?: bigint; me?: string; 
       {!closed && q && (
         <div className="row" style={{ marginTop: 10 }}>
           <input style={{ maxWidth: 170 }} placeholder={`Retainer, ${q.symbol} per day`} value={perDay} onChange={(e) => setPerDay(e.target.value)} />
-          <input style={{ maxWidth: 360 }} className="mono" placeholder="Operator key address (defaults to you)" value={operator} onChange={(e) => setOperator(e.target.value)} />
+          <input
+            style={{ maxWidth: 360 }}
+            className="mono"
+            placeholder={w.roles ? `Operator key (defaults to your passkey's, ${short(w.roles.operator)})` : "Operator key address (defaults to you)"}
+            value={operator}
+            onChange={(e) => setOperator(e.target.value)}
+          />
           <TxButton
             className="primary"
             label={mine?.active ? "Update bid" : "Place bid and lock bond"}
@@ -188,7 +196,7 @@ function RFQCard({ r, block, me, onDone }: { r: R; block?: bigint; me?: string; 
             onDone={onDone}
             run={() => {
               const rate = parseUnits(perDay, q.decimals) / blocksPerDay;
-              const op = isAddress(operator) ? operator : w.address!;
+              const op = isAddress(operator) ? operator : (w.roles?.operator ?? w.address!);
               return w.send((client, account) => write({ client, account }, d.rfq, rfqAuctionAbi, "bid", [r.id, rate, op]));
             }}
           />
