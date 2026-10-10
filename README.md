@@ -76,7 +76,8 @@ What runs, all onchain:
   per side, 1,980-block epochs (about 10 minutes), 85% uptime per 12-epoch window, 500 USDC slash per breach, mid
   drift ≤ 1.5% per epoch, 30 days.
 - **The house quoter and keeper**: the Cloudflare Worker in `packages/tick-worker`, a cron trigger every minute with at
-  most one signed transaction per tick. It quotes around the **live mid of Kuru's XAUt0-USDC book on Monad mainnet**
+  most one signed transaction per tick, signed by a policy-locked Privy server wallet (see
+  [Operator key](#operator-key-privy-policy-locked-server-wallet)). It quotes around the **live mid of Kuru's XAUt0-USDC book on Monad mainnet**
   (read from `rpc.monad.xyz`), with an Avellaneda-Stoikov inventory skew inside the drift cap, settles every hour, and
   serves a health check at https://quoral-tick.qvkare.workers.dev (HTTP 503 once quoting falls behind).
 - **An independent taker** (a separate key in the same worker) sends market buys and sells against the book now and
@@ -110,7 +111,7 @@ adds 15% rather than forge's default 30%.
 |---|---|
 | `contracts/` | Foundry. `src/` core contracts, `test/Quoral.t.sol` (39 tests incl. fuzz), `test/fork/KuruMainnetFork.t.sol` (2 tests against the live Kuru contracts on a Monad mainnet fork), `test/mocks/MockKuru.sol` (Kuru-faithful book with market orders), `script/Deploy.s.sol` (mainnet), `script/DeployTestnet.s.sol` (public demo), `script/DeployLocal.s.sol` (full demo on anvil) |
 | `packages/shared` | Generated typed ABIs, deployments, chains (Monad 143 / 10143), Kuru price/size helpers |
-| `packages/bot` | House quoter (A–S + inventory skew + SLA constraints), fallback keeper, Privy policy + setup, attack demo, `testnet-finish` |
+| `packages/bot` | House quoter (A–S + inventory skew + SLA constraints), fallback keeper, Privy policy, setup and rotation, attack demo, `testnet-finish` |
 | `packages/tick-worker` | Cloudflare Worker for the testnet demo: house quoter tracking Kuru mainnet, keeper, an independent taker, health check |
 | `cre/quoral-keeper` | Chainlink CRE workflow (cron → EVM read → signed report → `CREKeeperReceiver`), with a `local-simulation` target for Monad testnet |
 | `packages/indexer` | Envio HyperIndex on the testnet demo (`config.local.yaml` for anvil): factory-driven registration of vault/heartbeat/paystream, RFQs, bonds, Kuru fills, every proof with its hash |
@@ -182,15 +183,40 @@ markets are rejected in v1 because the vault is ERC-20 only.
 
 ## Operator key: Privy policy-locked server wallet
 
-`packages/bot/privy-policy.json` allows only `eth_sendTransaction` to the agreement vault, with value 0, on this chain.
-Every other method (personal_sign, typed data, raw sign) is denied by default. Onchain, the vault already limits the
-operator to `requote`, so even a fully compromised key cannot move inventory, send MON, give notice, rotate itself or
-pull its quotes after a proof, and it can move the quoted mid only within the drift cap. Rotating the operator takes
-issuer and MM together (2-of-2). The testnet worker signs with a plain key held as a Cloudflare secret; the Privy path
-is wired but not running there.
+On the testnet demo the operator is a Privy server wallet,
+[`0x08079Db1…2812`](https://testnet.monadvision.com/address/0x08079Db1a87c67dcD288300A5ef612a9d4502812). Privy signs
+and the worker broadcasts (`eth_signTransaction`, then `eth_sendRawTransaction` on Monad), so the gas limit and fees
+stay under our control; Monad bills the whole gas limit.
+
+The wallet's policy (`packages/bot/privy-policy.json`) allows five calls and nothing else: `requote`, `cancel` and
+`finalize` on the agreement's vault and `checkEpoch` and `flagPause` on its heartbeat, each with value 0 and only on
+chain 10143. Privy checks the target, the function name decoded from the calldata, the value and the chain before it
+signs. Messages, typed data and every other transaction are refused. `privy:setup` creates the policy and the wallet
+and checks this against Privy without sending anything:
+
+| Request to Privy | Result |
+|---|---|
+| `requote` on the vault | signed |
+| `checkEpoch` on the heartbeat | signed |
+| `requote` calldata to another address | `policy_violation` |
+| `requote` on another chain | `policy_violation` |
+| `giveNotice` on the vault | `policy_violation` |
+| Token `transfer` | `policy_violation` |
+| `personal_sign` | `policy_violation` |
+
+Onchain, the vault already limits the operator to `requote`, so even a fully compromised key cannot move inventory,
+give notice, rotate itself or pull its quotes after a proof, and it can move the quoted mid only within the drift cap.
+The policy adds what the contract cannot see: the key cannot sign for any other contract or chain, or sign a message
+for a phishing site. Rotating the operator takes issuer and MM together (2-of-2); `privy:rotate` does both steps. The
+worker signs with whichever of its keys is the operator, so the rotation cost no epoch, and the old local key stays
+behind as a fallback.
 
 ```bash
-AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filter @quoral/bot privy:setup
+CHAIN_ID=10143 AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filter @quoral/bot privy:setup
+```
+
+```bash
+PRIVY_ADDRESS=0x… pnpm --filter @quoral/bot privy:rotate
 ```
 
 ## Design decisions & honest limits
@@ -212,7 +238,7 @@ AGREEMENT=0x… PRIVY_APP_ID=… PRIVY_APP_SECRET=… pnpm --filter @quoral/bot 
 - **Kuru**: built on the Kuru v1 CLOB and tested against the live XAUt0-USDC book on a mainnet fork; the testnet quoter tracks that book's mid.
 - **Envio**: HyperIndex behind the Terms page history.
 - **Chainlink CRE**: epoch keeper workflow plus onchain receiver.
-- **Privy**: policy-locked server wallet for the quoter.
+- **Privy**: the live testnet operator is a policy-locked server wallet; Privy signs only the agreement's five calls.
 - **Mera**: passkey sign-in (`@category-labs/mera`, PRF → app-side key → zeroizable session), with time-to-first-tx shown in the UI.
 
 ## Submission checklist
@@ -255,7 +281,8 @@ tokens only.
 | Role | Address |
 |---|---|
 | Issuer and deployer | [`0xbeb6D11Af2F4C0e8336526F11c1D4D4aeb37a13E`](https://testnet.monadvision.com/address/0xbeb6D11Af2F4C0e8336526F11c1D4D4aeb37a13E) |
-| Operator (house quoter, worker) | [`0x89E6d2591383c391DaE99D397F7c89e792bE5Ead`](https://testnet.monadvision.com/address/0x89E6d2591383c391DaE99D397F7c89e792bE5Ead) |
+| Operator since 10 Oct: Privy server wallet (house quoter, worker) | [`0x08079Db1a87c67dcD288300A5ef612a9d4502812`](https://testnet.monadvision.com/address/0x08079Db1a87c67dcD288300A5ef612a9d4502812) |
+| Operator until 10 Oct: local key, now the worker's fallback | [`0x89E6d2591383c391DaE99D397F7c89e792bE5Ead`](https://testnet.monadvision.com/address/0x89E6d2591383c391DaE99D397F7c89e792bE5Ead) |
 | Market maker A (bid 12,000) | [`0xEa4a26963eE97eC5Fe8968bFFF5C02292ecc103B`](https://testnet.monadvision.com/address/0xEa4a26963eE97eC5Fe8968bFFF5C02292ecc103B) |
 | Market maker B (bid 9,500, won) | [`0x679B76716CEc9a62073743d9962A31679187435B`](https://testnet.monadvision.com/address/0x679B76716CEc9a62073743d9962A31679187435B) |
 | Market maker C (bid 11,000) | [`0xb4a96E1555FC3169CA493d8Efa0068dfBe8788cA`](https://testnet.monadvision.com/address/0xb4a96E1555FC3169CA493d8Efa0068dfBe8788cA) |
@@ -315,6 +342,14 @@ The worker keeps adding a proof every epoch; the agreement page and its Envio lo
 | Taker approves USDC to the book | [`0x2d343c02…`](https://testnet.monadvision.com/tx/0x2d343c02014d35d6476389431147a9579ea8902ca611b6b437bdec604e87fefc) |
 | Taker market-buys about 0.6 XAUt0 from the vault's ask at 4,111.07 (proceeds credited to the vault's margin) | [`0x9c7fe9bd…`](https://testnet.monadvision.com/tx/0x9c7fe9bd5c04d78af281ea7e9c2314e7a7904f7bf596992361dfcc811fd36dcb) |
 | Taker market-sells 0.4 XAUt0 into the vault's bid at 4,100.67 | [`0xccdbd07a…`](https://testnet.monadvision.com/tx/0xccdbd07aed362c9ca0e74e7635945fa347dafa5c26ae06cdc1c66ad7a036963e) |
+
+### Operator rotation to the Privy server wallet
+
+| Step | Transaction |
+|---|---|
+| Market maker B proposes the Privy wallet as operator | [`0xc7fcdb31…`](https://testnet.monadvision.com/tx/0xc7fcdb313f105fe7b6a4d69a5288491733e9e58f523c75e68fc080f23d8f95f6) |
+| Issuer accepts (2-of-2) | [`0x845715b9…`](https://testnet.monadvision.com/tx/0x845715b92450f165652eca98562c44bf267dffba325706a6a190fe0101052eca) |
+| Epoch 430 proof, the first signed by Privy and broadcast by the worker | [`0xeb87111d…`](https://testnet.monadvision.com/tx/0xeb87111dd17aca3b7f7b2de10f9899ff430a933daa8e99f8afd77320874a16db) |
 
 ### What a stolen operator key cannot do (simulated against the live agreement)
 
