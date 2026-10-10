@@ -1,5 +1,6 @@
 # Quoral house quoter + keeper (and an independent test taker) on Monad testnet. One tick per minute; at most one
-# signed tx per tick. Secrets (never in this file): OPERATOR_KEY and TAKER_KEY, set with `wrangler secret put`.
+# signed tx per tick. Secrets (never in this file): OPERATOR_KEY, TAKER_KEY and PRIVY_APP_SECRET, set with
+# `wrangler secret put`.
 name = "quoral-tick"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
@@ -19,4 +20,8 @@ FLOW_PROB = "0.08" # chance per idle tick that the taker sends a market order (a
 PAUSED = "0" # "1" = report only, send nothing
 GAS_HEADROOM_BPS = "500" # 5% over the estimate; Monad bills the whole gas limit
 PRIORITY_GWEI = "0" # base fee only (100 gwei); the testnet accepts tipless transactions
+# operator signer: the policy-locked Privy server wallet (packages/bot privy:setup); OPERATOR_KEY stays as the fallback
+PRIVY_APP_ID = "cmv2fsvbe01c20fldrow91ijh"
+PRIVY_WALLET_ID = "wfp0vpb0of3iswwpdp0a6xvy"
+PRIVY_ADDRESS = "0x08079Db1a87c67dcD288300A5ef612a9d4502812"
 # reference price: Kuru's XAUt0-USDC book on Monad mainnet (defaults in src/tick.ts)

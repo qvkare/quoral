@@ -1,6 +1,7 @@
 import { createWalletClient, http, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { cfg, chain, chainId, rpcUrl } from "./config";
+import { privySignTransaction, privyWalletAddress } from "@quoral/shared/privy";
+import { cfg, chain, chainId, publicClient, rpcUrl } from "./config";
 
 /** Minimal tx sender so the quoter is agnostic to where the operator key lives. */
 export interface Sender {
@@ -18,37 +19,34 @@ export function localSender(pk: Hex): Sender {
 }
 
 /**
- * Privy server wallet (app-owned). The wallet is created with the policy in privy-policy.json, which only
- * allows `eth_sendTransaction` to the agreement vault with value 0 on this chain; every other RPC method
- * (sign message / typed data / raw sign) is denied by default. Onchain, the vault already restricts the
- * operator to `requote` + `cancel`, so the key can neither move inventory nor send MON anywhere.
+ * Privy server wallet (app-owned). The wallet carries the policy in privy-policy.json: it may only sign zero-value
+ * transactions on this chain to this agreement's vault (requote, cancel, finalize) and heartbeat (checkEpoch,
+ * flagPause); every other method (sign message / typed data / raw sign) is denied by default. Privy signs and we
+ * broadcast, so the gas limit and fees stay ours (Monad bills the whole limit).
  */
 export async function privySender(): Promise<Sender> {
   const { appId, appSecret, walletId } = cfg.privy;
   if (!appId || !appSecret || !walletId) throw new Error("PRIVY_APP_ID / PRIVY_APP_SECRET / PRIVY_WALLET_ID required");
-  const headers = {
-    "content-type": "application/json",
-    "privy-app-id": appId,
-    authorization: "Basic " + Buffer.from(`${appId}:${appSecret}`).toString("base64"),
-  };
-  const w = await fetch(`https://api.privy.io/v1/wallets/${walletId}`, { headers }).then((r) => r.json());
-  if (!w.address) throw new Error(`privy wallet lookup failed: ${JSON.stringify(w)}`);
+  const creds = { appId, appSecret, walletId };
+  const address = await privyWalletAddress(creds);
   return {
-    address: w.address as Address,
+    address,
     async send(to, data, gas) {
-      const body = {
-        method: "eth_sendTransaction",
-        caip2: `eip155:${chainId}`,
-        params: { transaction: { to, data, value: "0x0", ...(gas ? { gas_limit: `0x${gas.toString(16)}` } : {}) } },
-      };
-      const res = await fetch(`https://api.privy.io/v1/wallets/${walletId}/rpc`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
+      const [estimate, fees, nonce] = await Promise.all([
+        gas ? Promise.resolve(gas) : publicClient.estimateGas({ account: address, to, data }).then((g) => (g * 115n) / 100n),
+        publicClient.estimateFeesPerGas(),
+        publicClient.getTransactionCount({ address, blockTag: "pending" }),
+      ]);
+      const raw = await privySignTransaction(creds, {
+        to,
+        data,
+        chainId,
+        nonce,
+        gas: estimate,
+        maxFeePerGas: fees.maxFeePerGas,
+        maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
       });
-      const j = await res.json();
-      if (!res.ok || !j?.data?.hash) throw new Error(`privy rpc ${res.status}: ${JSON.stringify(j)}`);
-      return j.data.hash as Hex;
+      return publicClient.sendRawTransaction({ serializedTransaction: raw });
     },
   };
 }

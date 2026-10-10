@@ -8,6 +8,10 @@
  *   3. enough ended epochs are unsettled       -> heartbeat.checkEpoch(last ended)
  *   4. the agreement has ended                 -> vault.cancel(), settle what is left, vault.finalize()
  *   5. nothing to do and TAKER_KEY is set      -> sometimes a market order from an independent taker
+ *
+ * The operator signs through a policy-locked Privy server wallet when PRIVY_WALLET_ID is set and that wallet is the
+ * vault's operator (Privy signs, the tick broadcasts). Otherwise it falls back to OPERATOR_KEY, so the worker keeps
+ * quoting across an operator rotation.
  * The vault cancels its own previous quotes inside requote, so the tick needs no order bookkeeping and no logs
  * (Monad's public RPC limits eth_getLogs to 100 blocks).
  *
@@ -19,14 +23,19 @@
  * The public Monad testnet RPC allows 15 requests per second and counts every call inside a JSON-RPC batch, so
  * all reads go through Multicall3: a quoting tick makes about six requests in total.
  */
-import { createPublicClient, createWalletClient, defineChain, http, parseAbi, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, http, parseAbi, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { privySignTransaction, type PrivyCreds } from "@quoral/shared/privy";
 
 export type Env = {
   RPC_URL: string;
   CHAIN_ID: string;
   VAULT: string;
-  OPERATOR_KEY: string;
+  OPERATOR_KEY?: string; // local operator key (fallback, or the only signer without Privy)
+  PRIVY_APP_ID?: string;
+  PRIVY_APP_SECRET?: string; // secret
+  PRIVY_WALLET_ID?: string;
+  PRIVY_ADDRESS?: string; // the Privy wallet's address, so no lookup is needed per tick
   PAUSED?: string; // "1": read and report only, never send
   SETTLE_EVERY?: string; // settle once this many ended epochs are waiting (default 6)
   REF_RPC_URL?: string; // chain of the reference market (default Monad mainnet)
@@ -106,16 +115,30 @@ function clients(env: Env) {
   });
   // concurrent reads in one tick fold into a single Multicall3 eth_call
   const pc = createPublicClient({ chain, transport: http(env.RPC_URL), batch: { multicall: true } });
-  const account = privateKeyToAccount(env.OPERATOR_KEY as Hex);
-  const wc = createWalletClient({ account, chain, transport: http(env.RPC_URL) });
+  const local = env.OPERATOR_KEY ? privateKeyToAccount(env.OPERATOR_KEY as Hex) : undefined;
+  const wc = local ? createWalletClient({ account: local, chain, transport: http(env.RPC_URL) }) : undefined;
+  const privy: (PrivyCreds & { address: Address }) | undefined =
+    env.PRIVY_APP_ID && env.PRIVY_APP_SECRET && env.PRIVY_WALLET_ID && env.PRIVY_ADDRESS
+      ? { appId: env.PRIVY_APP_ID, appSecret: env.PRIVY_APP_SECRET, walletId: env.PRIVY_WALLET_ID, address: env.PRIVY_ADDRESS as Address }
+      : undefined;
+  if (!local && !privy) throw new Error("set OPERATOR_KEY or the PRIVY_* variables");
   const taker = env.TAKER_KEY ? privateKeyToAccount(env.TAKER_KEY as Hex) : undefined;
   const tw = taker ? createWalletClient({ account: taker, chain, transport: http(env.RPC_URL) }) : undefined;
   const headroomBps = BigInt(env.GAS_HEADROOM_BPS ?? "500");
   const tipWei = BigInt(Math.round(Number(env.PRIORITY_GWEI ?? "0") * 1e9));
-  return { pc, wc, account, taker, tw, headroomBps, tipWei };
+  return { chainId, pc, wc, local, privy, signer: undefined as Signer | undefined, taker, tw, headroomBps, tipWei };
 }
 
 type Clients = ReturnType<typeof clients>;
+type Signer = { kind: "privy" | "local"; address: Address };
+
+/** Picks the key that is the vault's operator right now: the Privy wallet first, then the local key. */
+function pickSigner(c: Clients, operator: Address): Signer | undefined {
+  const op = operator.toLowerCase();
+  if (c.privy && c.privy.address.toLowerCase() === op) return { kind: "privy", address: c.privy.address };
+  if (c.local && c.local.address.toLowerCase() === op) return { kind: "local", address: c.local.address };
+  return undefined;
+}
 
 /** Agreement state shared by the tick and the health check: two multicalls. */
 async function snapshot({ pc }: Clients, vault: Address) {
@@ -186,6 +209,8 @@ export async function tick(env: Env): Promise<TickResult> {
   if (env.PAUSED === "1") return { epoch, action: "paused", detail: "PAUSED=1, not sending" };
 
   if (!s.live) {
+    // after the end everything is permissionless: sign with whichever key the worker has
+    c.signer = pickSigner(c, s.operator) ?? (c.local ? { kind: "local", address: c.local.address } : { kind: "privy", address: c.privy!.address });
     if (s.finalized) return { epoch, action: "idle", detail: "agreement finalized" };
     if (s.block < s.endBlock) return { epoch, action: "idle", detail: `starts at block ${s.startBlock}` };
     // 4. ended: pull the quotes, settle the rest in chunks, then finalize (all permissionless)
@@ -201,8 +226,10 @@ export async function tick(env: Env): Promise<TickResult> {
     const tx = await send(c, { ...v, functionName: "finalize" });
     return { epoch, action: "finalized", detail: "stream paid out, bond released", tx };
   }
-  if (s.operator.toLowerCase() !== c.account.address.toLowerCase()) {
-    return { epoch, action: "error", detail: `this key ${c.account.address} is not the vault operator ${s.operator}` };
+  c.signer = pickSigner(c, s.operator);
+  if (!c.signer) {
+    const keys = [c.privy?.address, c.local?.address].filter(Boolean).join(", ");
+    return { epoch, action: "error", detail: `none of this worker's keys (${keys}) is the vault operator ${s.operator}` };
   }
 
   // 1. venue paused: excuse the epoch instead of quoting
@@ -353,8 +380,9 @@ async function send(
   call: { address: Address; abi: readonly unknown[]; functionName: string; args?: readonly unknown[] },
   who: "operator" | "taker" = "operator",
 ): Promise<Hex> {
-  const account = who === "taker" ? c.taker! : c.account;
-  const wallet = who === "taker" ? c.tw! : c.wc;
+  if (who === "operator" && c.signer?.kind === "privy") return sendViaPrivy(c, call);
+  const account = who === "taker" ? c.taker! : c.local!;
+  const wallet = who === "taker" ? c.tw! : c.wc!;
   const estimate = await c.pc.estimateContractGas({ ...call, account: account.address } as never);
   const gas = (estimate * (10_000n + c.headroomBps)) / 10_000n;
   const fees = await c.pc.estimateFeesPerGas();
@@ -366,19 +394,44 @@ async function send(
   }
 }
 
+/** Privy signs (its policy checks target, function, value and chain first), the tick broadcasts the raw tx. */
+async function sendViaPrivy(
+  c: Clients,
+  call: { address: Address; abi: readonly unknown[]; functionName: string; args?: readonly unknown[] },
+): Promise<Hex> {
+  const from = c.privy!.address;
+  const data = encodeFunctionData(call as never);
+  const [estimate, fees, nonce] = await Promise.all([
+    c.pc.estimateGas({ account: from, to: call.address, data }),
+    c.pc.estimateFeesPerGas(),
+    c.pc.getTransactionCount({ address: from, blockTag: "pending" }),
+  ]);
+  const raw = await privySignTransaction(c.privy!, {
+    to: call.address,
+    data,
+    chainId: c.chainId,
+    nonce,
+    gas: (estimate * (10_000n + c.headroomBps)) / 10_000n,
+    maxFeePerGas: fees.maxFeePerGas,
+    maxPriorityFeePerGas: c.tipWei,
+  });
+  return c.pc.sendRawTransaction({ serializedTransaction: raw });
+}
+
 /** Read-only health for the worker's GET /: `ok` is false once the quoter falls behind, so a monitor can alert. */
 export async function status(env: Env) {
   const c = clients(env);
   const vault = env.VAULT as Address;
-  const [s, balance, takerBalance] = await Promise.all([
-    snapshot(c, vault),
-    c.pc.getBalance({ address: c.account.address }),
+  const s = await snapshot(c, vault);
+  const signer = pickSigner(c, s.operator);
+  const [balance, takerBalance] = await Promise.all([
+    c.pc.getBalance({ address: s.operator }),
     c.taker ? c.pc.getBalance({ address: c.taker.address }) : Promise.resolve(undefined),
   ]);
   const behind = s.lastQuoted === undefined ? (s.live ? s.current + 1n : 0n) : s.current - s.lastQuoted;
   const unsettled = s.live ? s.current - s.settled : s.block >= s.endBlock ? s.total - s.settled : 0n;
   // the current epoch may still be waiting for its tick; one full epoch without a proof is a failure
-  const ok = env.PAUSED === "1" || !s.live || s.paused || behind <= 1n;
+  const ok = env.PAUSED === "1" || !s.live || s.paused || (behind <= 1n && signer !== undefined);
   const scale = s.scale;
   return {
     ok,
@@ -396,7 +449,8 @@ export async function status(env: Env) {
       base: Number(s.inventory.base) / 10 ** Number(scale.baseDecimals),
       quote: Number(s.inventory.quote) / 10 ** Number(scale.quoteDecimals),
     },
-    operator: c.account.address,
+    operator: s.operator,
+    signer: signer ? (signer.kind === "privy" ? "privy server wallet (policy-locked)" : "local key") : "none of this worker's keys",
     operatorBalanceMon: Number(balance) / 1e18,
     taker: c.taker?.address ?? null,
     takerBalanceMon: takerBalance === undefined ? null : Number(takerBalance) / 1e18,

@@ -120,6 +120,9 @@ importers:
 
   packages/tick-worker:
     dependencies:
+      '@quoral/shared':
+        specifier: workspace:*
+        version: link:../shared
       viem:
         specifier: ^2.38.0
         version: 2.57.3(typescript@5.9.3)

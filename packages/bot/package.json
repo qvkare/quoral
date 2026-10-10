@@ -10,7 +10,8 @@
     "demo:attack": "tsx src/demo-attack.ts",
     "test": "tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "testnet:finish": "tsx src/testnet-finish.ts"
+    "testnet:finish": "tsx src/testnet-finish.ts",
+    "privy:rotate": "tsx src/privy-rotate.ts"
   },
   "dependencies": {
     "@quoral/shared": "workspace:*",

@@ -1,15 +1,90 @@
 {
   "version": "1.0",
-  "name": "quoral-operator-<VAULT>",
+  "name": "quoral operator, chain <CHAIN_ID>",
   "chain_type": "ethereum",
   "rules": [
     {
-      "name": "Only zero-value txs to the Quoral InventoryVault on this chain",
-      "method": "eth_sendTransaction",
+      "name": "vault.requote",
+      "method": "eth_signTransaction",
       "conditions": [
         { "field_source": "ethereum_transaction", "field": "to", "operator": "eq", "value": "<VAULT>" },
         { "field_source": "ethereum_transaction", "field": "value", "operator": "eq", "value": "0" },
-        { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq", "value": "<CHAIN_ID>" }
+        { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq", "value": "<CHAIN_ID>" },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "function_name",
+          "abi": [{ "type": "function", "name": "requote", "stateMutability": "nonpayable", "inputs": [{ "name": "bidPrices", "type": "uint32[]" }, { "name": "bidSizes", "type": "uint96[]" }, { "name": "askPrices", "type": "uint32[]" }, { "name": "askSizes", "type": "uint96[]" }], "outputs": [{ "name": "epoch", "type": "uint256" }] }],
+          "operator": "eq",
+          "value": "requote"
+        }
+      ],
+      "action": "ALLOW"
+    },
+    {
+      "name": "vault.cancel",
+      "method": "eth_signTransaction",
+      "conditions": [
+        { "field_source": "ethereum_transaction", "field": "to", "operator": "eq", "value": "<VAULT>" },
+        { "field_source": "ethereum_transaction", "field": "value", "operator": "eq", "value": "0" },
+        { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq", "value": "<CHAIN_ID>" },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "function_name",
+          "abi": [{ "type": "function", "name": "cancel", "stateMutability": "nonpayable", "inputs": [], "outputs": [] }],
+          "operator": "eq",
+          "value": "cancel"
+        }
+      ],
+      "action": "ALLOW"
+    },
+    {
+      "name": "vault.finalize",
+      "method": "eth_signTransaction",
+      "conditions": [
+        { "field_source": "ethereum_transaction", "field": "to", "operator": "eq", "value": "<VAULT>" },
+        { "field_source": "ethereum_transaction", "field": "value", "operator": "eq", "value": "0" },
+        { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq", "value": "<CHAIN_ID>" },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "function_name",
+          "abi": [{ "type": "function", "name": "finalize", "stateMutability": "nonpayable", "inputs": [], "outputs": [] }],
+          "operator": "eq",
+          "value": "finalize"
+        }
+      ],
+      "action": "ALLOW"
+    },
+    {
+      "name": "heartbeat.checkEpoch",
+      "method": "eth_signTransaction",
+      "conditions": [
+        { "field_source": "ethereum_transaction", "field": "to", "operator": "eq", "value": "<HEARTBEAT>" },
+        { "field_source": "ethereum_transaction", "field": "value", "operator": "eq", "value": "0" },
+        { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq", "value": "<CHAIN_ID>" },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "function_name",
+          "abi": [{ "type": "function", "name": "checkEpoch", "stateMutability": "nonpayable", "inputs": [{ "name": "epoch", "type": "uint256" }], "outputs": [] }],
+          "operator": "eq",
+          "value": "checkEpoch"
+        }
+      ],
+      "action": "ALLOW"
+    },
+    {
+      "name": "heartbeat.flagPause",
+      "method": "eth_signTransaction",
+      "conditions": [
+        { "field_source": "ethereum_transaction", "field": "to", "operator": "eq", "value": "<HEARTBEAT>" },
+        { "field_source": "ethereum_transaction", "field": "value", "operator": "eq", "value": "0" },
+        { "field_source": "ethereum_transaction", "field": "chain_id", "operator": "eq", "value": "<CHAIN_ID>" },
+        {
+          "field_source": "ethereum_calldata",
+          "field": "function_name",
+          "abi": [{ "type": "function", "name": "flagPause", "stateMutability": "nonpayable", "inputs": [], "outputs": [{ "name": "epoch", "type": "uint256" }] }],
+          "operator": "eq",
+          "value": "flagPause"
+        }
       ],
       "action": "ALLOW"
     }
