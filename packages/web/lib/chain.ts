@@ -13,7 +13,9 @@ const hasMulticall = Boolean((chain as { contracts?: { multicall3?: unknown } })
 export const publicClient = createPublicClient({
   chain,
   batch: hasMulticall ? { multicall: { wait: 16 } } : undefined,
-  transport: http(RPC_URL, { batch: hasMulticall ? false : { wait: 16 } }),
+  // The public Monad testnet RPC answers 429 above 15 requests per second per IP (several tabs, or people behind
+  // one address); back off and retry for up to ~10 s instead of failing the page on the first burst.
+  transport: http(RPC_URL, { batch: hasMulticall ? false : { wait: 16 }, retryCount: 5, retryDelay: 350 }),
 });
 
 /** Where the agreement quotes. Kuru's testnet runs v2, so the testnet demo uses a book with the Kuru v1 interface. */
