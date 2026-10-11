@@ -148,7 +148,7 @@ cp packages/web/.env.example packages/web/.env.local && pnpm web   # http://loca
 Optional: `pnpm --filter @quoral/indexer dev:local` (Envio HyperIndex on anvil; needs Docker) and set
 `NEXT_PUBLIC_ENVIO_URL=http://localhost:8080/v1/graphql`.
 
-Then open `/` and the agreement page. Sign in with a passkey, a browser wallet, or one of the local demo accounts.
+Then open `/` and the agreement page. Sign in with a passkey (Mera is the only account layer), or with one of the local demo accounts on anvil.
 `pnpm --filter @quoral/bot demo:attack` shows what a compromised operator key cannot do.
 
 Tests:

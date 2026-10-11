@@ -153,7 +153,7 @@ export default function IssuerConsole() {
           sub="Write the service level, lock inventory and a retainer budget, and let bonded market makers bid for the seat. The terms page goes live the moment you award."
         />
         {!w.address && (
-          <div className="notice">Sign in with a passkey or wallet (top right) to open RFQs and manage agreements. You can explore the form without signing in.</div>
+          <div className="notice">Sign in with a passkey (top right) to open RFQs and manage agreements. You can explore the form without signing in.</div>
         )}
         <RoleHint role="issuer" />
 

@@ -92,7 +92,7 @@ function WalletButton() {
         {open && (
           <div className="pop" role="menu">
             <div className="small muted">
-              Signed in with {w.kind === "passkey" ? "a passkey (Mera)" : w.kind === "demo" ? "a local demo account" : "a browser wallet"}
+              Signed in with {w.kind === "demo" ? "a local demo account" : "a passkey (Mera)"}
             </div>
             {w.roles ? (
               <div className="stack" style={{ gap: 6 }}>
@@ -154,8 +154,6 @@ function WalletButton() {
             <input aria-label="Name for a new passkey" placeholder="Name for a new passkey" value={name} onChange={(e) => setName(e.target.value)} />
             <button type="submit" disabled={!name}>Create</button>
           </form>
-          <div className="sep" />
-          <button onClick={async () => { await w.connectInjected(); setOpen(false); }}>Browser wallet</button>
           {CHAIN_ID === 31337 && (
             <>
               <div className="sep" />
