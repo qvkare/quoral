@@ -259,7 +259,7 @@ td.head { white-space: nowrap; }
 .caption { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--graphite); max-width: 76ch; margin: 10px 0 0; line-height: 1.5; }
 
 /* ---------------------------------------------------------------- landing */
-.hero { padding: 56px 0 36px; }
+.hero { padding: 24px 0 36px; }
 .display { font-size: clamp(42px, 7vw, 92px); font-weight: 300; letter-spacing: -0.045em; line-height: 0.98; margin: 0 0 26px; max-width: 13ch; }
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
 .hero .display { font-size: clamp(42px, 5.4vw, 74px); }
@@ -357,4 +357,3 @@ table.perm tr.critical td { background: var(--wash); }
 }
 
 /* network note: plain text under the header, no colour, no icon */
-.netnote { border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--graphite); padding: 9px 0; }
