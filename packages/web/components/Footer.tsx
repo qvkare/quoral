@@ -21,6 +21,7 @@ export function Footer() {
             <Link href="/mm">Market makers</Link>
             <Link href="/#questions">Questions</Link>
             <a href="https://github.com/Kuru-Labs/Kuru-contracts-dex-public" target="_blank" rel="noreferrer">Kuru contracts</a>
+            <a href="https://x.com/qvkare" target="_blank" rel="noreferrer">@qvkare on X</a>
           </nav>
         </div>
       </div>
